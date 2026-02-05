@@ -1,0 +1,131 @@
+{% extends 'UI/base.html' %}
+{% block title %}Nhật ký Hệ thống{% endblock %}
+
+{% block content %}
+    <h1>Nhật ký Hoạt động (Audit Logs)</h1>
+
+    <div class="card card-body bg-light mb-3">
+        <form method="GET" action="{{ url_for('system_logs_page') }}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+				<label class="form-label fw-bold">Từ ngày:</label>
+				<input type="date" id="filter_start" name="start_date" class="form-control" value="{{ start_date or '' }}">
+			</div>
+			<div class="col-md-3">
+				<label class="form-label fw-bold">Đến ngày:</label>
+				<input type="date" id="filter_end" name="end_date" class="form-control" value="{{ end_date or '' }}">
+			</div>
+            <div class="col-md-6 d-flex gap-2">
+                <button type="submit" name="action" value="view" class="btn btn-primary">
+                    🔍 Lọc
+                </button>
+                
+                <a href="{{ url_for('system_logs_page') }}" class="btn btn-outline-secondary">Xóa lọc</a>
+
+                <div class="vr"></div> <button type="submit" name="action" value="export" class="btn btn-success">
+                    📥 Xuất CSV
+                </button>
+
+                <button type="button" class="btn btn-danger ms-auto" onclick="submitClearLog()">
+                    🗑️ Xóa Log này
+                </button>
+            </div>
+        </form>
+        
+        <form id="clearLogForm" action="{{ url_for('clear_system_logs') }}" method="POST">
+			<input type="hidden" name="start_date" id="hidden_start">
+			<input type="hidden" name="end_date" id="hidden_end">
+		</form>
+    </div>
+
+    <p class="text-muted">Tổng cộng: <strong>{{ total_records }}</strong> bản ghi.</p>
+
+    <div class="table-responsive">
+        <table class="table table-sm table-hover table-bordered" style="font-size: 0.9em;">
+            <thead class="table-dark">
+                <tr>
+                    <th>Thời gian</th>
+                    <th>Người dùng</th>
+                    <th>Hành động</th>
+                    <th>Module</th>
+                    <th>Chi tiết</th>
+                    <th>IP / Thiết bị</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs_list %}
+                <tr>
+                    <td style="white-space: nowrap;">{{ log.created_at }}</td>
+                    <td class="fw-bold">{{ log.full_name or 'Hệ thống' }}</td>
+                    <td>
+                        <span class="badge {% if 'DELETE' in log.action_type %}bg-danger{% elif 'UPDATE' in log.action_type %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                            {{ log.action_type }}
+                        </span>
+                    </td>
+                    <td>{{ log.target_module }}</td>
+                    <td>{{ log.description }}</td>
+                    <td class="small text-muted" title="{{ log.device_info }}">
+                        {{ log.ip_address }}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not logs_list %}
+                <tr><td colspan="6" class="text-center">Không có dữ liệu trong khoảng thời gian này.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav>
+        <ul class="pagination justify-content-center">
+            <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('system_logs_page', page=current_page-1, start_date=start_date, end_date=end_date) }}">Trước</a>
+            </li>
+            
+            <li class="page-item disabled">
+                <span class="page-link">Trang {{ current_page }} / {{ total_pages }}</span>
+            </li>
+
+            <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('system_logs_page', page=current_page+1, start_date=start_date, end_date=end_date) }}">Sau</a>
+            </li>
+        </ul>
+    </nav>
+    {% endif %}
+
+    <script>
+        function submitClearLog() {			
+
+			// 1. Lấy giá trị từ ô hiển thị (Dùng ID mới)
+			const startInput = document.getElementById('filter_start');
+			const endInput = document.getElementById('filter_end');
+
+			// Kiểm tra xem có tìm thấy thẻ input không
+			if (!startInput || !endInput) {
+				alert("Lỗi: Không tìm thấy ô nhập ngày tháng trong HTML. Vui lòng kiểm tra lại ID.");
+				return;
+			}
+
+			const startVal = startInput.value;
+			const endVal = endInput.value;
+
+
+			// 2. Kiểm tra dữ liệu
+			if (!startVal || !endVal) {
+				alert("Vui lòng chọn khoảng 'Từ ngày' và 'Đến ngày' trên thanh công cụ trước khi bấm Xóa!");
+				return;
+			}
+
+			// 3. Xác nhận
+			if (confirm(`CẢNH BÁO AN NINH!\n\nBạn sắp XÓA VĨNH VIỄN nhật ký từ ngày ${startVal} đến ${endVal}.\n\nHành động này sẽ được hệ thống ghi lại.\nBạn có chắc chắn không?`)) {
+				
+				// 4. Đổ dữ liệu vào form ẩn (Dùng ID mới)
+				document.getElementById('hidden_start').value = startVal;
+				document.getElementById('hidden_end').value = endVal;
+				
+				// 5. Gửi form
+				document.getElementById('clearLogForm').submit();
+			}
+		}
+    </script>
+{% endblock %}

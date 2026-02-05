@@ -1,0 +1,48 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}Báo cáo Công nợ Khách hàng{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4">Báo cáo Công nợ Khách hàng (Ai nợ mình)</h1>
+
+    <div class="alert alert-danger">
+        <h4 class="alert-heading">Tổng Công nợ Phải Thu</h4>
+        <p>Tổng số tiền bạn cần thu về từ tất cả khách hàng hiện đang là:</p>
+        <hr>
+        <h2 class="mb-0">{{ total_all_due|currency }} vnđ</h2>
+    </div>
+
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID Khách hàng</th>
+                <th>Tên Khách hàng</th>
+                <th>Số điện thoại</th>
+                <th>Tổng số tiền đang nợ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if debt_list %}
+				{% for item in debt_list %}
+				<tr>
+					<td>{{ item.customer_id }}</td>
+					<td>
+						<a href="{{ url_for('customer_debt_detail_report', customer_id=item.customer_id) }}">
+							{{ item.customer_name }}
+						</a>
+					</td>
+					<td>{{ item.phone }}</td>
+					<td class="fs-5 fw-bold text-danger">{{ item.total_due|currency }} vnđ</td>
+				</tr>
+				{% endfor %}
+			{% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-success">
+                        Tuyệt vời! Không có khách hàng nào nợ tiền.
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+{% endblock %}

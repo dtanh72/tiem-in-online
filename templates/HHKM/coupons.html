@@ -1,0 +1,92 @@
+{% extends 'UI/base.html' %}
+{% block title %}Quản lý Mã Khuyến Mãi{% endblock %}
+
+{% block content %}
+    <h1>Quản lý Mã Khuyến Mãi</h1>
+
+    <div class="card card-body bg-light mb-4">
+        <h3>Tạo Mã Mới</h3>
+        <form action="/add_coupon" method="POST">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Mã Code:</label>
+                    <input type="text" name="code" class="form-control" placeholder="VD: TET2024" required style="text-transform: uppercase;">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Loại giảm:</label>
+                    <select name="discount_type" class="form-select">
+                        <option value="percent">Phần trăm (%)</option>
+                        <option value="fixed">Tiền mặt (vnđ)</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Giá trị:</label>
+                    <input type="number" name="discount_value" class="form-control" placeholder="VD: 10 hoặc 50000" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Đơn tối thiểu:</label>
+                    <input type="number" name="min_order_value" class="form-control" value="0">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Ngày bắt đầu:</label>
+                    <input type="date" name="start_date" class="form-control" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Ngày kết thúc:</label>
+                    <input type="date" name="end_date" class="form-control" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Giới hạn số lần (0 = Vô hạn):</label>
+                    <input type="number" name="usage_limit" class="form-control" value="0">
+                </div>
+                <div class="col-md-3 d-flex align-items-end mb-3">
+                    <button type="submit" class="btn btn-primary w-100">Lưu Mã</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Code</th>
+                <th>Giảm giá</th>
+                <th>Đơn tối thiểu</th>
+                <th>Hạn dùng</th>
+                <th>Đã dùng</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in coupons_list %}
+            <tr>
+                <td class="fw-bold text-primary">{{ c.code }}</td>
+                <td>
+                    {{ c.discount_value|currency }} 
+                    {% if c.discount_type == 'percent' %}%{% else %}vnđ{% endif %}
+                </td>
+                <td>{{ c.min_order_value|currency }}</td>
+                <td>{{ c.start_date }} đến {{ c.end_date }}</td>
+                <td>{{ c.used_count }} / {% if c.usage_limit == 0 %}∞{% else %}{{ c.usage_limit }}{% endif %}</td>
+                <td>
+                    {% if c.status == 'active' %}
+                        <span class="badge bg-success">Đang chạy</span>
+                    {% else %}
+                        <span class="badge bg-secondary">Dừng</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form action="/toggle_coupon_status/{{ c.coupon_id }}" method="POST">
+                        <button type="submit" class="btn btn-sm btn-warning">
+                            {% if c.status == 'active' %}Tắt{% else %}Bật{% endif %}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endblock %}

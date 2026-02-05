@@ -1,0 +1,43 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ DỊCH VỤ{% endblock %}
+
+{% block content %}
+
+    <h1>Sửa Dịch vụ: {{ service.service_name }}</h1>
+
+    <form action="/update_service" method="POST" class="card card-body bg-light mb-4">
+    
+        <input type="hidden" name="service_id" value="{{ service.service_id }}">
+        
+        <div class="mb-3">
+            <label for="service_name" class="form-label">Tên Dịch vụ:</label><br>
+            <input type="text" id="service_name" name="service_name" class="form-control" value="{{ service.service_name }}" required>
+        </div>
+        <div class="mb-3">
+			<label class="form-label">Đơn Vị Tính Tầng 1 (Cơ sở):</label>
+			<input type="text" name="unit" class="form-control" required placeholder="VD: Tờ">
+		</div>
+		<div class="mb-3">
+			<label class="form-label">Đơn Vị Tính Tầng 2 (Nếu có):</label>
+			<input type="text" name="unit_level2" class="form-control" placeholder="VD: Cuốn/Xấp">
+		</div>
+		<div class="mb-3">
+			<label class="form-label">Đơn Vị Tính Tầng 3 (Nếu có):</label>
+			<input type="text" name="unit_level3" class="form-control" placeholder="VD: Bộ">
+		</div>
+		<div class="mb-3">
+			<label for="base_price" class="form-label">Đơn giá (vnđ):</label><br>
+			<input type="number" id="base_price" name="base_price" class="form-control" value="{{ service.base_price }}">
+		</div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Mô tả:</label><br>
+            <textarea id="description" name="description" rows="3" class="form-control">{{ service.description }}</textarea>
+        </div>
+        
+		<button type="submit" class="btn btn-primary">Cập nhật Dịch vụ</button>
+    </form>
+
+    <a href="{{ url_for('services_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
+
+{% endblock %}

@@ -1,0 +1,212 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}Bảng điều khiển{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4">Bảng điều khiển (Real-time)</h1>
+
+    <div class="row">
+        <div class="col-lg-3 col-md-6 mb-4"> <div class="card text-white bg-success h-100">
+                <div class="card-header">DOANH THU THỰC TẾ</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ revenue_today|currency }} vnđ</h4>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card text-white bg-secondary h-100">
+                <div class="card-header">DOANH THU BỊ HỦY</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ revenue_cancelled_today|currency }} vnđ</h4>
+                    <p class="card-text small">Đơn hàng bị hủy hôm nay</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card text-white bg-danger h-100">
+                <div class="card-header">CÔNG NỢ PHẢI THU (Khách nợ)</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ total_due_customer|currency }} vnđ</h4>
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <a href="{{ url_for('customer_debt_report') }}" class="small text-white text-decoration-none">Xem chi tiết &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-3 col-md-6 mb-4">
+            <div class="card text-dark bg-warning h-100">
+                <div class="card-header">CÔNG NỢ PHẢI TRẢ (Mình nợ)</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ total_due_supplier|currency }} vnđ</h4>
+                </div>
+                <div class="card-footer d-flex justify-content-between">
+                    <a href="{{ url_for('supplier_debt_report') }}" class="small text-dark text-decoration-none">Xem chi tiết &rarr;</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card text-white bg-primary h-100">
+                <div class="card-header">ĐƠN HÀNG MỚI (Hôm nay)</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ orders_today }}</h4>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card text-dark bg-info h-100">
+                <div class="card-header">BÁO GIÁ ĐANG CHỜ</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ pending_quotes }}</h4>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card text-white bg-secondary h-100">
+                <div class="card-header">ĐƠN HÀNG CHỜ GIAO</div>
+                <div class="card-body">
+                    <h4 class="card-title">{{ pending_delivery }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <h2>Cảnh báo Vật tư Sắp hết</h2>
+            <p>Các vật tư có tồn kho dưới 500 (tính theo đơn vị cơ sở).</p>
+            
+            <table class="table table-sm table-hover table-bordered">
+                <thead class="table-danger">
+                    <tr>
+                        <th>Tên Vật tư</th>
+                        <th>Tồn kho (ĐV Cơ sở)</th>
+                        <th>Đơn vị Cơ sở</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if low_stock_items %}
+                        {% for item in low_stock_items %}
+                        <tr>
+                            <td>{{ item.material_name }}</td>
+                            <td><strong>{{ item.stock_quantity }}</strong></td>
+                            <td>{{ item.base_unit }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center">Tốt! Không có vật tư nào sắp hết.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>	
+	
+	<div class="col-md-12">
+		<h2>🛠️ Theo dõi Tuổi thọ Linh kiện</h2> <p>Danh sách tất cả linh kiện đang được theo dõi trên các máy.</p>
+		
+		<table class="table table-bordered table-hover">
+			<thead class="table-light">
+				<tr>
+					<th>Thiết bị</th>
+					<th>Linh kiện</th>
+					<th>Vòng đời (A)</th>
+					<th>Thay lúc (B)</th>
+					<th>Hạn thay (A+B)</th>
+					<th>Counter Máy (C)</th>
+					<th>Còn lại (A+B-C)</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% if maintenance_alerts %}
+					{% for alert in maintenance_alerts %}
+					<tr>
+						<td>{{ alert.equipment_name }}</td>
+						<td>{{ alert.material_name }}</td>
+						<td>{{ alert.lifespan_prints|currency }}</td>
+						<td>{{ alert.last_replaced_at|currency }}</td>
+						
+						<td class="fw-bold">{{ alert.next_due_at|currency }}</td>
+						
+						<td style="color: blue;">{{ alert.current_machine_counter|currency }}</td>
+						
+						{% if alert.remaining_prints <= 0 %}
+							<td class="bg-danger text-white fw-bold">
+								{{ alert.remaining_prints|currency }} (NÊN THAY)
+							</td>
+						{% elif alert.remaining_prints < 5000 %}
+							<td class="bg-warning text-dark fw-bold">
+								{{ alert.remaining_prints|currency }} (Sắp thay)
+							</td>
+						{% else %}
+							<td class="text-success">
+								{{ alert.remaining_prints|currency }} (Tốt)
+							</td>
+						{% endif %}
+					</tr>
+					{% endfor %}
+				{% else %}
+					<tr>
+						<td colspan="7" class="text-center">
+							Chưa có dữ liệu theo dõi. 
+							<br>Hãy chắc chắn bạn đã: 
+							1. Sửa vật tư -> Nhập "Vòng đời" (>0). 
+							2. Thêm Nhật ký bảo trì -> Chọn "Linh kiện đã thay".
+						</td>
+					</tr>
+				{% endif %}
+			</tbody>
+		</table>
+	</div>
+	
+	<div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card border-secondary mb-3">
+                <div class="card-header bg-secondary text-white">
+                    📋 BÁO GIÁ ĐÃ TỰ ĐỘNG HỦY (Quá hạn 7 ngày)
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Mã BG</th>
+                                <th>Ngày tạo</th>
+                                <th>Khách hàng</th>
+                                <th>Tổng tiền</th>
+                                <th>Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if expired_quotes_list %}
+                                {% for quote in expired_quotes_list %}
+                                <tr>
+                                    <td>#{{ quote.quote_id }}</td>
+                                    <td>{{ quote.created_date }}</td>
+                                    <td>{{ quote.customer_name }}</td>
+                                    <td>{{ quote.total_amount|currency }}</td>
+                                    <td>
+                                        <a href="{{ url_for('quote_detail_page', quote_id=quote.quote_id) }}" class="btn btn-sm btn-secondary">Xem lại</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">Không có báo giá nào bị hủy tự động gần đây.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}

@@ -1,0 +1,397 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}Định mức Vật tư (Công thức){% endblock %}
+
+{% block content %}
+    <h1>Thiết lập Định mức (Công thức)</h1>
+
+    <form action="/add_service_material" method="POST">
+        <div class="container">
+            
+            <div class="row mb-3 bg-light p-3 rounded shadow-sm">
+                <div class="col-md-6">
+                    <label for="service_id" class="form-label fw-bold">Bước 1: Chọn Dịch vụ cần cài đặt:</label>
+                    <div class="input-group">
+                        <select id="service_id" name="service_id" required class="form-select form-select-lg">
+                            <option value="">-- Chọn dịch vụ --</option>
+                            {% for service in services_list %}
+                                <option value="{{ service.service_id }}" 
+										data-u1="{{ service.unit }}"
+										data-u2="{{ service.unit_level2 or '' }}" 
+										data-u3="{{ service.unit_level3 or '' }}">
+									{{ service.service_name }}
+								</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-outline-success" type="button" 
+                                data-bs-toggle="modal" data-bs-target="#quickAddServiceModal" title="Thêm Dịch vụ mới">
+                            +
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-6 d-flex align-items-end justify-content-end">
+                    <button type="submit" class="btn btn-primary btn-lg">LƯU CÔNG THỨC</button>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="fw-bold">Bước 2: Các vật tư tiêu hao cho 1 đơn vị dịch vụ:</label>
+                <button type="button" id="add_row_btn" class="btn btn-sm btn-secondary">+ Thêm dòng vật tư</button>
+            </div>
+
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 45%;">Vật tư tiêu hao</th>
+                        <th style="width: 10%;">Đơn vị tính</th>
+                        <th style="width: 35%;">Công thức</th>
+                        <th style="width: 10%;">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="bom_items_body">
+                    </tbody>
+            </table>
+        </div>
+    </form>
+
+    <hr class="my-5">
+    
+    <h2 class="mb-4">Danh sách Định mức Đã lưu</h2>
+    <div class="row">
+        {% for service_id, data in grouped_boms.items() %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ data.service_name }}</h5>
+                    <span class="badge bg-light text-dark">Giá bán: {{ data.selling_price|currency }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Vật tư</th>
+                                <th class="text-center">SL</th>
+                                <th class="text-end">Giá vốn</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in data['items'] %}
+                            <tr>
+                                <td>{{ item.material_name }}</td>
+                                <td class="text-center">
+									{{ item.quantity_consumed }} {{ item.base_unit }} 
+									/ 1 
+									<strong>
+										{% if item.apply_to_unit_level == 1 %}{{ data.u1 }}
+										{% elif item.apply_to_unit_level == 2 %}{{ data.u2 }}
+										{% elif item.apply_to_unit_level == 3 %}{{ data.u3 }}
+										{% endif %}
+									</strong>
+								</td>
+                                <td class="text-end">{{ item.estimated_cost|currency }}</td>
+                                <td class="text-end">
+                                    <form action="/delete_service_material/{{ item.service_material_id }}" method="POST" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm text-danger p-0 border-0" onclick="return confirm('Xóa?');">✖</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-group-divider fw-bold bg-light">
+                            <tr>
+                                <td colspan="2" class="text-end">Lợi nhuận Gộp:</td>
+                                <td class="text-end text-success">{{ (data.selling_price - data.total_cost)|currency }}</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12"><div class="alert alert-info">Chưa có dữ liệu.</div></div>
+        {% endfor %}
+    </div>
+
+    <table style="display: none;">
+        <tr id="row_template">
+            <td>
+                <div class="input-group">
+                    <select name="material_id[]" class="form-select material-select" required onchange="updateUnitDisplay(this)">
+                        <option value="" data-unit="">-- Chọn vật tư --</option>
+                        {% for m in materials_list %}
+                            <option value="{{ m.material_id }}" data-unit="{{ m.base_unit }}">
+                                {{ m.material_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-outline-success" type="button" onclick="openQuickAddMaterialModal(this)" title="Thêm Vật tư mới">+</button>
+                </div>
+            </td>
+            <td>
+                <input type="text" class="form-control unit-display text-center" readonly style="background: #eee;">
+            </td>
+            <td>
+                <div class="input-group input-group-sm">
+					<input type="number" step="0.0001" name="quantity_consumed[]" class="form-control" required placeholder="SL" style="max-width: 80px;">
+					
+					<span class="input-group-text unit-display">...</span>
+					
+					<span class="input-group-text">cho 1</span>
+					
+					<select name="apply_to_level[]" class="form-select level-select" style="max-width: 100px;">
+						<option value="1" class="opt-u1">Tờ (L1)</option>
+						<option value="2" class="opt-u2" style="display:none;">L2</option>
+						<option value="3" class="opt-u3" style="display:none;">L3</option>
+					</select>
+				</div>
+            </td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteRow(this)">X</button>
+            </td>
+        </tr>
+    </table>
+
+    <div class="modal fade" id="quickAddServiceModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Thêm nhanh Dịch vụ</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form id="quickAddServiceForm">
+						<div class="mb-3">
+							<label class="form-label">Tên Dịch vụ:</label>
+							<input type="text" id="qs_name" class="form-control" required>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Đơn giá (vnđ):</label>
+							<input type="number" id="qs_price" class="form-control" value="0">
+						</div>
+						
+						<div class="row">
+							<div class="col-md-4 mb-3">
+								<label class="form-label small">ĐV Tầng 1 (Cơ sở):</label>
+								<input type="text" id="qs_unit" class="form-control" required placeholder="Tờ">
+							</div>
+							<div class="col-md-4 mb-3">
+								<label class="form-label small">ĐV Tầng 2 (x):</label>
+								<input type="text" id="qs_unit2" class="form-control" placeholder="Cuốn">
+							</div>
+							<div class="col-md-4 mb-3">
+								<label class="form-label small">ĐV Tầng 3 (x):</label>
+								<input type="text" id="qs_unit3" class="form-control" placeholder="Bộ">
+							</div>
+						</div>
+						</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" id="saveQuickService" class="btn btn-primary">Lưu</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+    <div class="modal fade" id="quickAddMaterialModal" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Thêm nhanh Vật tư</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="quickAddMaterialForm"><div class="mb-3"><label class="form-label">Tên Vật tư:</label><input type="text" id="qm_name" class="form-control" required></div><div class="row"><div class="col-6 mb-3"><label class="form-label">ĐV Cơ sở (Kho):</label><input type="text" id="qm_base" class="form-control" required></div><div class="col-6 mb-3"><label class="form-label">ĐV Nhập (Mua):</label><input type="text" id="qm_import" class="form-control" required></div></div><div class="mb-3"><label class="form-label">Hệ số quy đổi:</label><input type="number" id="qm_factor" class="form-control" value="1" step="0.01"></div></form></div><div class="modal-footer"><button type="button" id="saveQuickMaterial" class="btn btn-primary">Lưu</button></div></div></div>
+    </div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+		
+		// Biến lưu thông tin đơn vị của dịch vụ đang chọn
+		let currentServiceUnits = { u1: 'L1', u2: null, u3: null };
+		
+		// 1. SỰ KIỆN KHI CHỌN DỊCH VỤ
+		document.getElementById('service_id').addEventListener('change', function() {
+			
+			// Chúng ta cần lấy data-u1, data-u2, data-u3 từ option đã chọn
+			// (Bạn nhớ thêm các thuộc tính data-u... vào vòng lặp option ở phần HTML trên cùng nhé)
+			const opt = this.options[this.selectedIndex];
+			
+			// Lấy dữ liệu từ data-attributes mà ta vừa thêm ở bước 2
+			const u1 = opt.getAttribute('data-u1');
+			const u2 = opt.getAttribute('data-u2');
+			const u3 = opt.getAttribute('data-u3');
+			
+			// Cập nhật biến toàn cục
+			currentServiceUnits.u1 = u1 || 'L1';
+			currentServiceUnits.u2 = u2 || null;
+			currentServiceUnits.u3 = u3 || null;
+			
+			console.log("Đã chọn dịch vụ:", currentServiceUnits); // Debug xem có nhận được không
+
+			// Cập nhật ngay lập tức cho Template và các dòng đang có
+			updateAllLevelSelects();
+		});
+
+		// 2. HÀM CẬP NHẬT TẤT CẢ DROPDOWN LEVEL
+		function updateAllLevelSelects() {
+			// Tìm tất cả dropdown chọn level (bao gồm cả trong template ẩn)
+			const allSelects = document.querySelectorAll('.level-select');
+			
+			allSelects.forEach(select => {
+				const opt1 = select.querySelector('.opt-u1');
+				const opt2 = select.querySelector('.opt-u2');
+				const opt3 = select.querySelector('.opt-u3');
+
+				// Cập nhật Text và Ẩn/Hiện
+				if (opt1) opt1.textContent = currentServiceUnits.u1 + " (L1)";
+				
+				if (opt2) {
+					if (currentServiceUnits.u2) {
+						opt2.style.display = 'block';
+						opt2.textContent = currentServiceUnits.u2 + " (L2)";
+					} else {
+						opt2.style.display = 'none';
+						// Nếu đang chọn cái bị ẩn thì reset về 1
+						if (select.value == "2") select.value = "1";
+					}
+				}
+
+				if (opt3) {
+					if (currentServiceUnits.u3) {
+						opt3.style.display = 'block';
+						opt3.textContent = currentServiceUnits.u3 + " (L3)";
+					} else {
+						opt3.style.display = 'none';
+						if (select.value == "3") select.value = "1";
+					}
+				}
+			});
+		}
+		
+        // 1. SỬA HÀM THÊM DÒNG (Để cập nhật cho dòng mới sinh ra)
+        document.getElementById('add_row_btn').addEventListener('click', function() {
+            const template = document.getElementById('row_template');
+			const tbody = document.getElementById('bom_items_body');
+            const newRow = template.cloneNode(true);
+            newRow.removeAttribute('id');
+			
+			tbody.appendChild(newRow);
+        
+			// Quan trọng: Gọi cập nhật cho dòng mới vừa thêm
+			updateAllLevelSelects();
+        });
+
+        // 2. Hàm xóa dòng
+        window.deleteRow = function(btn) {
+            btn.closest('tr').remove();
+        }
+
+        // 3. Hàm hiển thị đơn vị
+        window.updateUnitDisplay = function(select) {
+            const unit = select.options[select.selectedIndex].getAttribute('data-unit');
+            const row = select.closest('tr');
+            row.querySelector('.unit-display').value = unit || '...';
+        }
+
+        // 4. AJAX Thêm Dịch vụ
+        document.getElementById('saveQuickService').addEventListener('click', function() {
+            // 1. Lấy dữ liệu
+			const name = document.getElementById('qs_name').value;
+            const price = document.getElementById('qs_price').value;
+            const u1 = document.getElementById('qs_unit').value;
+			const u2 = document.getElementById('qs_unit2').value; // Mới
+			const u3 = document.getElementById('qs_unit3').value; // Mới
+			
+            if(!name || !u1) return alert("Vui lòng nhập Tên và Đơn vị cơ sở!");
+			
+            const formData = new FormData();
+            formData.append('service_name', name); 
+			formData.append('base_price', price); 
+			formData.append('unit', u1);
+			formData.append('unit_level2', u2); // Gửi thêm
+			formData.append('unit_level3', u3); // Gửi thêm
+            
+			// 2. Gửi AJAX
+			fetch("{{ url_for('ajax_add_service') }}", { 
+					method: 'POST', 
+					body: formData 
+					})
+					.then(res => res.json())
+					.then(data => {
+						if(data.success) {
+							// 3. Tạo option mới với đầy đủ data attributes
+							const opt = document.createElement('option');
+							opt.value = data.new_id; 
+							opt.text = data.new_name; 
+							opt.selected = true;
+							
+							// QUAN TRỌNG: Cập nhật đầy đủ thông tin đơn vị vào thẻ option
+							opt.setAttribute('data-price', data.new_price);
+							opt.setAttribute('data-u1', data.new_u1);
+							opt.setAttribute('data-u2', data.new_u2);
+							opt.setAttribute('data-u3', data.new_u3);
+							
+							// 4. Cập nhật vào tất cả các dropdown đang có
+							// (Nếu ở trang định mức thì ID là 'service_id', nếu ở trang đơn hàng thì class là '.service_select')
+							const singleSelect = document.getElementById('service_id');
+							if (singleSelect) {
+								singleSelect.appendChild(opt);
+								// Kích hoạt sự kiện change để cập nhật giao diện ngay
+								singleSelect.dispatchEvent(new Event('change'));
+							}
+							
+							const listSelects = document.querySelectorAll('.service_select');
+							if (listSelects.length > 0) {
+								listSelects.forEach(s => s.appendChild(opt.cloneNode(true)));
+							}
+
+							// 5. Đóng modal & Reset
+							bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal')).hide();
+							document.getElementById('quickAddServiceForm').reset();
+						} else {
+							alert('Lỗi: ' + data.error);
+						}
+            });
+        });
+
+        // 5. AJAX Thêm Vật tư (Logic cập nhật động)
+        let activeSelectElement = null;
+        window.openQuickAddMaterialModal = function(btn) {
+            activeSelectElement = btn.previousElementSibling;
+            new bootstrap.Modal(document.getElementById('quickAddMaterialModal')).show();
+        }
+
+        document.getElementById('saveQuickMaterial').addEventListener('click', function() {
+            const name = document.getElementById('qm_name').value;
+            const base = document.getElementById('qm_base').value;
+            const imp = document.getElementById('qm_import').value;
+            const factor = document.getElementById('qm_factor').value;
+            if(!name) return;
+            const formData = new FormData();
+            formData.append('material_name', name); formData.append('base_unit', base); formData.append('import_unit', imp); formData.append('import_conversion_factor', factor);
+            
+            fetch("{{ url_for('ajax_add_material') }}", { method: 'POST', body: formData }).then(res => res.json()).then(data => {
+                if(data.success) {
+                    const newOption = document.createElement('option');
+                    newOption.value = data.new_id; newOption.text = data.new_name;
+                    newOption.setAttribute('data-unit', data.new_import_unit); // Sửa: Dùng base_unit cho định mức thì đúng hơn, nhưng API trả về new_import_unit. Bạn có thể sửa API trả về base_unit nếu muốn chính xác.
+                    // (Lưu ý: API ajax_add_material hiện trả về 'new_import_unit'. Tốt nhất nên dùng 'base_unit' cho định mức. 
+                    // Tạm thời dùng base từ form input để hiển thị ngay)
+                    newOption.setAttribute('data-unit', base); 
+
+                    const allSelects = document.querySelectorAll('.material-select');
+                    allSelects.forEach(select => { select.appendChild(newOption.cloneNode(true)); });
+
+                    if (activeSelectElement) {
+                        activeSelectElement.value = data.new_id;
+                        updateUnitDisplay(activeSelectElement);
+                    }
+                    bootstrap.Modal.getInstance(document.getElementById('quickAddMaterialModal')).hide();
+                    document.getElementById('quickAddMaterialForm').reset();
+                } else { alert(data.error); }
+            });
+        });
+
+        // Thêm 1 dòng đầu tiên
+        document.getElementById('add_row_btn').click();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,216 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ KHO VẬT TƯ{% endblock %}
+
+{% block content %}
+
+    <h1>Trang Nhập Kho Vật tư</h1>
+
+    <h3>Thêm Phiếu Nhập Kho</h3>
+    <form action="/add_import" method="POST" class="card card-body bg-light mb-4">
+        <div class="mb-3">
+            <div class="mb-3"> <label for="material_id" class="form-label">Chọn Vật tư:</label><br>
+    
+				<div class="input-group">
+					<select id="material_id" name="material_id" required class="form-select">
+						<option value="">-- Chọn vật tư --</option>
+						{% for material in materials_list %}
+							<option value="{{ material.material_id }}" data-unit="{{ material.import_unit }}">
+								{{ material.material_name }}
+							</option>
+						{% endfor %}
+					</select>
+					<button class="btn btn-outline-success" type="button" 
+							data-bs-toggle="modal" data-bs-target="#quickAddMaterialModal">
+						+
+					</button>
+				</div>
+			</div>
+        </div>
+        <div class="mb-3">
+            <label for="supplier_id" class="form-label">Chọn Nhà cung cấp:</label><br>
+            <select id="supplier_id" name="supplier_id" class="form-control">
+                <option value="">-- (Không bắt buộc) --</option>
+                {% for supplier in suppliers_list %}
+                    <option value="{{ supplier.supplier_id }}">{{ supplier.supplier_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="quantity_imported" class="form-label">Số lượng nhập (ĐVT <span id="unit_display">...</span>):</label><br>
+            <input type="number" id="quantity_imported" name="quantity_imported" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="import_price" class="form-label">Giá nhập (cho 1 <span id="unit_display_2">...</span>):</label><br>
+            <input type="number" step="100" id="import_price" name="import_price" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="import_date" class="form-label">Ngày nhập:</label><br>
+            <input type="date" id="import_date" name="import_date" class="form-control" required>
+        </div>
+        
+		<button type="submit" class="btn btn-primary">Lưu Phiếu Nhập</button>
+    </form>
+
+    <h2>Lịch sử Nhập Kho</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Ngày nhập</th>
+                <th>Tên Vật tư</th>
+                <th>Nhà cung cấp</th>
+                <th>Số lượng</th>
+                <th>Đơn vị</th>
+                <th>Giá nhập (cho 1 đơn vị)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in imports_list %}
+            <tr>
+                <td>{{ item.import_date }}</td>
+                <td>{{ item.material_name }}</td>
+                <td>{{ item.supplier_name }}</td>
+                <td>{{ item.quantity_imported }}</td>
+                <td>{{ item.import_unit }}</td> <td>{{ item.import_price|currency }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+	
+	<div class="modal fade" id="quickAddMaterialModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Thêm nhanh Vật tư</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form id="quickAddMaterialForm">
+						<div class="mb-3">
+							<label for="quick_material_name" class="form-label">Tên Vật tư:</label>
+							<input type="text" id="quick_material_name" class="form-control" required>
+						</div>
+						<div class="mb-3">
+							<label for="quick_base_unit" class="form-label">Đơn vị Cơ sở (để trừ kho):</label>
+							<input type="text" id="quick_base_unit" class="form-control" placeholder="Ví dụ: tờ, ml" required>
+						</div>
+						<div class="mb-3">
+							<label for="quick_import_unit" class="form-label">Đơn vị Nhập (để mua):</label>
+							<input type="text" id="quick_import_unit" class="form-control" placeholder="Ví dụ: ram, hộp" required>
+						</div>
+						<div class="mb-3">
+							<label for="quick_conversion_factor" class="form-label">Hệ số (1 ĐV Nhập = ? ĐV Cơ sở):</label>
+							<input type="number" id="quick_conversion_factor" class="form-control" value="1" step="0.01" required>
+						</div>
+						<div id="quickAddMaterialError" class="text-danger"></div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+					<button type="button" id="saveQuickAddMaterial" class="btn btn-primary">Lưu Vật tư</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+    <script>
+        // Chờ cho toàn bộ trang được tải xong
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Tìm các phần tử HTML chúng ta cần
+            const materialSelect = document.getElementById('material_id');
+            const unitDisplay = document.getElementById('unit_display');
+            const unitDisplay2 = document.getElementById('unit_display_2');
+
+            // Tạo một hàm để cập nhật đơn vị
+            function updateUnit() {
+                // Lấy <option> đang được chọn
+                const selectedOption = materialSelect.options[materialSelect.selectedIndex];
+                
+                // Lấy giá trị của 'data-unit' từ option đó
+                const unit = selectedOption.getAttribute('data-unit');
+
+                if (unit) {
+                    // Nếu có unit (ví dụ: "ram"), hiển thị nó
+                    unitDisplay.textContent = unit;
+                    unitDisplay2.textContent = unit;
+                } else {
+                    // Nếu người dùng chọn "-- Chọn vật tư --"
+                    unitDisplay.textContent = '...';
+                    unitDisplay2.textContent = '...';
+                }
+            }
+			
+			// === CODE JAVASCRIPT AJAX CHO VẬT TƯ (MỚI) ===
+			const saveMaterialBtn = document.getElementById('saveQuickAddMaterial');
+			const mainMaterialSelect = document.getElementById('material_id');
+			const quickAddMaterialForm = document.getElementById('quickAddMaterialForm');
+			const quickAddMaterialModal = new bootstrap.Modal(document.getElementById('quickAddMaterialModal'));
+			const materialErrorDiv = document.getElementById('quickAddMaterialError');
+
+			saveMaterialBtn.addEventListener('click', function() {
+				const nameInput = document.getElementById('quick_material_name');
+				const baseUnitInput = document.getElementById('quick_base_unit');
+				const importUnitInput = document.getElementById('quick_import_unit');
+				const factorInput = document.getElementById('quick_conversion_factor');
+				
+				if (!nameInput.value || !baseUnitInput.value || !importUnitInput.value || !factorInput.value) {
+					materialErrorDiv.textContent = 'Vui lòng nhập đủ các trường.';
+					return;
+				}
+				
+				const formData = new FormData();
+				formData.append('material_name', nameInput.value);
+				formData.append('base_unit', baseUnitInput.value);
+				formData.append('import_unit', importUnitInput.value);
+				formData.append('import_conversion_factor', factorInput.value);
+				
+				// 1. Gửi AJAX đến route Python
+				fetch("{{ url_for('ajax_add_material') }}", {
+					method: 'POST',
+					body: formData
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						// 2. Nếu thành công, tạo <option> mới
+						const newOption = document.createElement('option');
+						newOption.value = data.new_id;
+						newOption.textContent = data.new_name;
+						newOption.setAttribute('data-unit', data.new_import_unit);
+						newOption.selected = true; // Tự động chọn vật tư vừa thêm
+						
+						// 3. Thêm option vào dropdown chính
+						mainMaterialSelect.appendChild(newOption);
+						
+						// 4. Kích hoạt hàm updateUnit() để hiển thị đơn vị mới
+						// (Giả sử updateUnit() đã được định nghĩa ở ngoài)
+						if (typeof updateUnit === 'function') {
+							updateUnit();
+						}
+						
+						// 5. Dọn dẹp và đóng modal
+						quickAddMaterialForm.reset();
+						materialErrorDiv.textContent = '';
+						quickAddMaterialModal.hide();
+					} else {
+						materialErrorDiv.textContent = 'Lỗi: ' + data.error;
+					}
+				})
+				.catch(error => {
+					materialErrorDiv.textContent = 'Lỗi kết nối: ' + error;
+				});
+			});
+			// === KẾT THÚC CODE VẬT TƯ MỚI ===
+			
+            // "Lắng nghe": Khi nào người dùng 'change' (thay đổi)
+            // lựa chọn trong dropdown 'material_id'...
+            materialSelect.addEventListener('change', updateUnit);
+
+            // Chạy hàm này 1 lần khi tải trang
+            // để đảm bảo nó hiển thị đúng (thường là '...')
+            updateUnit();
+        });
+    </script>
+
+{% endblock %}

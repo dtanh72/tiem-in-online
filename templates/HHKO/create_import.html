@@ -1,0 +1,270 @@
+{% extends 'UI/base.html' %}
+{% block title %}📋 Tạo Phiếu Nhập Kho{% endblock %}
+
+{% block content %}
+    <h1>📋 Tạo Phiếu Nhập Kho</h1>
+
+    <form action="{{ url_for('submit_import_slip') }}" method="POST">
+        <div class="container">
+            <div class="row mb-4 bg-light p-3 rounded shadow-sm">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Nhà cung cấp:</label>
+                    <div class="input-group">
+                        <select id="supplier_id" name="supplier_id" required class="form-select">
+                            <option value="">-- Chọn Nhà cung cấp --</option>
+                            {% for s in suppliers_list %}
+                                <option value="{{ s.supplier_id }}">{{ s.supplier_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#quickAddSupplierModal" title="Thêm NCC mới">+</button>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Ngày nhập:</label>
+                    <input type="date" name="import_date" required class="form-control" value="{{ today }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold">Thanh toán:</label>
+                    <select name="payment_status" class="form-select">
+                        <option value="unpaid">Chưa trả (Ghi nợ)</option>
+                        <option value="paid">Đã trả ngay</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-end">
+                    <label class="form-label d-block">&nbsp;</label>
+                    <div class="fs-4 fw-bold text-danger" id="grand_total">0</div>
+                    <small>vnđ</small>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3>Chi tiết Vật tư</h3>
+                <button type="button" id="add_row_btn" class="btn btn-primary">+ Thêm dòng</button>
+            </div>
+            
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 35%;">Vật tư</th>
+                        <th style="width: 10%;">Đơn vị</th>
+                        <th style="width: 15%;">Số lượng</th>
+                        <th style="width: 20%;">Giá nhập (vnđ)</th>
+                        <th style="width: 15%;">Thành tiền</th>
+                        <th style="width: 5%;">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="import_items_body">
+                    </tbody>
+            </table>
+
+            <div class="text-end mt-3">
+                <button type="submit" class="btn btn-success btn-lg">LƯU PHIẾU NHẬP</button>
+            </div>
+        </div>
+    </form>
+
+    <table style="display: none;">
+        <tr id="row_template">
+            <td>
+                <div class="input-group">
+                    <select name="material_id[]" class="form-select material-select" required onchange="updateUnitDisplay(this)">
+                        <option value="" data-unit="">-- Chọn vật tư --</option>
+                        {% for m in materials_list %}
+                            <option value="{{ m.material_id }}" data-unit="{{ m.import_unit }}">
+                                {{ m.material_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-outline-success" type="button" onclick="openQuickAddMaterialModal(this)" title="Thêm Vật tư mới">+</button>
+                </div>
+            </td>
+            <td>
+                <input type="text" class="form-control unit-display text-center" readonly style="background: #eee;">
+            </td>
+            <td>
+                <input type="number" name="quantity[]" class="form-control qty-input" value="1" min="1" oninput="calcTotal()">
+            </td>
+            <td>
+                <input type="number" name="unit_price[]" class="form-control price-input" value="0" oninput="calcTotal()">
+            </td>
+            <td>
+                <input type="text" class="form-control line-total text-end" readonly style="font-weight: bold;">
+            </td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteRow(this)">X</button>
+            </td>
+        </tr>
+    </table>
+
+    <div class="modal fade" id="quickAddSupplierModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm Nhà cung cấp Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="quickAddSupplierForm">
+                        <div class="mb-3">
+                            <label class="form-label">Tên Nhà cung cấp:</label>
+                            <input type="text" id="quick_supplier_name" class="form-control" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="saveQuickSupplier" class="btn btn-primary">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="quickAddMaterialModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm nhanh Vật tư</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="quickAddMaterialForm">
+                        <div class="mb-3">
+                            <label class="form-label">Tên Vật tư:</label>
+                            <input type="text" id="quick_material_name" class="form-control" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Đơn vị Cơ sở (Kho):</label>
+                                <input type="text" id="quick_base_unit" class="form-control" placeholder="tờ" required>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <label class="form-label">Đơn vị Nhập (Mua):</label>
+                                <input type="text" id="quick_import_unit" class="form-control" placeholder="ram" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Hệ số (1 ĐV Nhập = ? ĐV Cơ sở):</label>
+                            <input type="number" id="quick_conversion_factor" class="form-control" value="1" step="0.01" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" id="saveQuickAddMaterial" class="btn btn-primary">Lưu Vật tư</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. HÀM TÍNH TOÁN (QUAN TRỌNG)
+        function calcTotal() {
+            let grandTotal = 0;
+            const rows = document.querySelectorAll('#import_items_body tr');
+            
+            rows.forEach(row => {
+                const qtyInput = row.querySelector('.qty-input');
+                const priceInput = row.querySelector('.price-input');
+                
+                const qty = parseFloat(qtyInput.value) || 0;
+                const price = parseFloat(priceInput.value) || 0;
+                
+                const total = qty * price;
+                
+                // Hiển thị thành tiền dòng (có dấu phẩy)
+                row.querySelector('.line-total').value = total.toLocaleString('vi-VN');
+                
+                grandTotal += total;
+            });
+            
+            // Hiển thị Tổng cộng (có dấu phẩy)
+            document.getElementById('grand_total').innerText = grandTotal.toLocaleString('vi-VN');
+        }
+
+        // 2. Hàm thêm dòng
+        document.getElementById('add_row_btn').addEventListener('click', function() {
+            const template = document.getElementById('row_template');
+            const newRow = template.cloneNode(true);
+            newRow.removeAttribute('id');
+            document.getElementById('import_items_body').appendChild(newRow);
+            calcTotal(); // Tính lại (dù là 0)
+        });
+
+        // 3. Hàm xóa dòng
+        window.deleteRow = function(btn) {
+            btn.closest('tr').remove();
+            calcTotal(); // Tính lại sau khi xóa
+        }
+
+        // 4. Hàm hiển thị đơn vị
+        window.updateUnitDisplay = function(select) {
+            const unit = select.options[select.selectedIndex].getAttribute('data-unit');
+            const row = select.closest('tr');
+            row.querySelector('.unit-display').value = unit || '...';
+        }
+
+        // 5. Script Thêm nhanh NCC (AJAX)
+        document.getElementById('saveQuickSupplier').addEventListener('click', function() {
+            const name = document.getElementById('quick_supplier_name').value;
+            if(!name) return;
+            const formData = new FormData();
+            formData.append('supplier_name', name);
+            formData.append('phone', ''); 
+            formData.append('email', ''); 
+
+            fetch("{{ url_for('ajax_add_supplier') }}", {
+                method: 'POST', body: formData
+            }).then(res => res.json()).then(data => {
+                if(data.success) {
+                    const select = document.getElementById('supplier_id');
+                    const opt = document.createElement('option');
+                    opt.value = data.new_id; opt.text = data.new_name; opt.selected = true;
+                    select.appendChild(opt);
+                    bootstrap.Modal.getInstance(document.getElementById('quickAddSupplierModal')).hide();
+                } else { alert(data.error); }
+            });
+        });
+
+        // 6. Script Thêm nhanh Vật tư (AJAX)
+        let activeSelectElement = null;
+        window.openQuickAddMaterialModal = function(btn) {
+            activeSelectElement = btn.previousElementSibling;
+            new bootstrap.Modal(document.getElementById('quickAddMaterialModal')).show();
+        }
+
+        document.getElementById('saveQuickAddMaterial').addEventListener('click', function() {
+            const name = document.getElementById('quick_material_name').value;
+            const baseUnit = document.getElementById('quick_base_unit').value;
+            const importUnit = document.getElementById('quick_import_unit').value;
+            const factor = document.getElementById('quick_conversion_factor').value;
+
+            if(!name) return;
+            const formData = new FormData();
+            formData.append('material_name', name);
+            formData.append('base_unit', baseUnit);
+            formData.append('import_unit', importUnit);
+            formData.append('import_conversion_factor', factor);
+
+            fetch("{{ url_for('ajax_add_material') }}", {
+                method: 'POST', body: formData
+            }).then(res => res.json()).then(data => {
+                if(data.success) {
+                    const newOption = document.createElement('option');
+                    newOption.value = data.new_id; newOption.text = data.new_name;
+                    newOption.setAttribute('data-unit', data.new_import_unit);
+
+                    const allSelects = document.querySelectorAll('.material-select');
+                    allSelects.forEach(select => { select.appendChild(newOption.cloneNode(true)); });
+
+                    if (activeSelectElement) {
+                        activeSelectElement.value = data.new_id;
+                        updateUnitDisplay(activeSelectElement);
+                    }
+                    bootstrap.Modal.getInstance(document.getElementById('quickAddMaterialModal')).hide();
+                    document.getElementById('quickAddMaterialForm').reset();
+                } else { alert(data.error); }
+            });
+        });
+
+        // Thêm 1 dòng mặc định khi tải trang
+        document.getElementById('add_row_btn').click();
+    </script>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}Báo cáo Công nợ Nhà cung cấp{% endblock %}
+
+{% block content %}
+    <h1 class="mb-4">Báo cáo Công nợ Nhà cung cấp (Mình nợ ai)</h1>
+
+    <div class="alert alert-warning">
+        <h4 class="alert-heading">Tổng Công nợ Phải Trả</h4>
+        <p>Tổng số tiền bạn cần thanh toán cho các nhà cung cấp (tiền hàng, tiền dịch vụ) hiện đang là:</p>
+        <hr>
+        <h2 class="mb-0">{{ total_all_due|currency }} vnđ</h2>
+    </div>
+
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Ngày</th>
+                <th>Nhà cung cấp</th>
+                <th>Nội dung (Loại)</th>
+                <th>Số tiền nợ</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if all_debts %}
+				{% for item in all_debts %}
+				<tr>
+					<td>{{ item.date }}</td>
+					<td>{{ item.supplier_name }}</td>
+					<td>{{ item.type }}</td>
+					<td class="fw-bold text-danger">{{ item.total_amount|currency }} vnđ</td>
+					<td>{{ item.payment_status }}</td>
+					
+					<td>
+						<form action="{{ url_for('pay_supplier_bill') }}" method="POST" style="display:inline;"
+							  onsubmit="return confirm('Bạn có chắc chắn đã thanh toán khoản này?');">
+							
+							<input type="hidden" name="bill_id" value="{{ item.id }}">
+							<input type="hidden" name="bill_source" value="{{ item.source }}">
+							
+							<button type="submit" class="btn btn-sm btn-success">
+								Đánh dấu Đã trả
+							</button>
+						</form>
+					</td>
+					</tr>
+				{% endfor %}
+			{% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-success">
+                        Tốt! Bạn không nợ tiền nhà cung cấp nào.
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ TRANG THIẾT BỊ{% endblock %}
+
+{% block content %}
+
+    <h1>Trang Quản lý Thiết bị</h1>
+
+    <h2>Thêm Thiết bị Mới (Máy in, Máy cắt...)</h2>
+    <form action="/add_equipment" method="POST" class="card card-body bg-light mb-4">
+        <div class="mb-3">
+            <label for="equipment_name" class="form-label">Tên Thiết bị:</label><br>
+            <input type="text" id="equipment_name" class="form-control" name="equipment_name" required placeholder="Ví dụ: Máy in màu Konica C6085">
+        </div>
+		
+		<div class="row mt-2">
+            <div class="col-md-6">
+                <label for="ip_address" class="form-label">Địa chỉ IP:</label>
+                <input type="text" id="ip_address" name="ip_address" class="form-control" placeholder="192.168.1.200">
+            </div>
+            <div class="col-md-6">
+                <label for="serial_number" class="form-label">Số Serial (S/N):</label>
+                <input type="text" id="serial_number" name="serial_number" class="form-control" placeholder="S/N của máy">
+            </div>
+        </div>
+		
+        <div class="mb-3">
+            <label for="model_number" class="form-label">Model:</label><br>
+            <input type="text" id="model_number" class="form-control" name="model_number" placeholder="Ví dụ: C6085">
+        </div>
+		<div class="mb-3">
+			<label for="supplier_id" class="form-label">Nhà cung cấp (Nơi mua):</label>
+			<div class="input-group">
+				<select id="supplier_id" name="supplier_id" class="form-select">
+					<option value="">-- Không xác định --</option>
+					{% for supplier in suppliers_list %}
+						<option value="{{ supplier.supplier_id }}">{{ supplier.supplier_name }}</option>
+					{% endfor %}
+				</select>
+				<button class="btn btn-outline-success" type="button" 
+						data-bs-toggle="modal" data-bs-target="#quickAddSupplierModal">+</button>
+			</div>
+		</div>
+        <div class="mb-3">
+            <label for="purchase_date" class="form-label">Ngày mua:</label><br>
+            <input type="date" id="purchase_date" name="purchase_date" class="form-control">
+        </div>
+		
+		<div class="col-md-6">
+                <label for="initial_counter" class="form-label text-primary fw-bold">Counter ban đầu:</label>
+                <input type="number" id="initial_counter" name="initial_counter" class="form-control" value="0">
+                <small class="text-muted">Số bản in đã chạy khi nhận máy.</small>
+            </div>
+        
+		<div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="warranty_end_date" class="form-label">Bảo hành đến ngày:</label>
+                <input type="date" id="warranty_end_date" name="warranty_end_date" class="form-control">
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="warranty_end_counter" class="form-label">HOẶC đến số Counter:</label>
+                <input type="number" id="warranty_end_counter" name="warranty_end_counter" class="form-control" placeholder="VD: 500000">
+            </div>
+        </div>
+        <small class="text-muted d-block mb-3">Thông tin bảo hành máy (nếu có).</small>
+		
+		<button type="submit" class="btn btn-primary">Lưu Thiết bị</button>
+    </form>
+
+    <h2>Danh sách Thiết bị</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tên Thiết bị</th>
+                <th>Model</th>
+				<th>Nhà cung cấp</th>
+                <th>Bảo hành (Hạn)</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for eq in equipment_list %}
+            <tr class="{% if not eq.is_active %}table-secondary text-muted{% endif %}">
+                <td>{{ eq.equipment_id }}</td>                
+				<td class="fw-bold">
+                    {{ eq.equipment_name }}
+                    {% if not eq.is_active %}(Đã khóa)
+					{% else %}
+						<br><small class="text-muted">IP: {{ eq.ip_address or 'Chưa có' }}</small>
+						<br><small class="text-muted">SN: {{ eq.serial_number or 'Chưa có' }}</small>
+						<br><small class="text-muted">Ngày mua: {{ eq.purchase_date }}</small>
+					{% endif %}
+                </td>
+                <td>{{ eq.model_number }}</td>
+				<td>{{ eq.supplier_name or 'N/A' }}</td>
+                <td class="small">
+                    {% if eq.warranty_end_date %}
+                        <div>📅 {{ eq.warranty_end_date }}</div>
+                    {% endif %}
+                    {% if eq.warranty_end_counter %}
+                        <div>🔢 {{ eq.warranty_end_counter|currency }}</div>
+                    {% endif %}
+                    {% if not eq.warranty_end_date and not eq.warranty_end_counter %}
+                        -
+                    {% endif %}
+                </td>
+                <td>{{ eq.status }}</td>
+                
+				<td>
+                    {% if eq.is_active %}
+                        <a href="{{ url_for('equipment_detail_page', equipment_id=eq.equipment_id) }}" class="btn btn-sm btn-warning">Sửa / Xem Nhật ký</a>
+                    {% endif %}
+
+                    <form action="{{ url_for('toggle_equipment', id=eq.equipment_id) }}" method="POST" style="display:inline;">
+                        {% if eq.is_active %}
+                            <button type="submit" class="btn btn-sm btn-danger" 
+                                    onclick="return confirm('Khóa thiết bị này? Nó sẽ ẩn khỏi các trang khác.');">
+                                🔒 Khóa
+                            </button>
+                        {% else %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                🔓 Mở lại
+                            </button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+	
+	<div class="modal fade" id="quickAddSupplierModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Thêm Nhà cung cấp Mới</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form id="quickAddSupplierForm">
+						<div class="mb-3">
+							<label class="form-label">Tên Nhà cung cấp:</label>
+							<input type="text" id="quick_supplier_name" class="form-control" required>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Số điện thoại:</label>
+							<input type="text" id="quick_supplier_phone" class="form-control">
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Email:</label>
+							<input type="email" id="quick_supplier_email" class="form-control">
+						</div>
+						<div id="quickSupplierError" class="text-danger"></div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+					<button type="button" id="saveQuickSupplier" class="btn btn-primary">Lưu NCC</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	{% block scripts %}
+		<script>
+			document.addEventListener('DOMContentLoaded', function() {
+				const saveBtn = document.getElementById('saveQuickSupplier');
+				
+				if(saveBtn){
+					saveBtn.addEventListener('click', function() {
+						// 1. Lấy dữ liệu
+						const name = document.getElementById('quick_supplier_name').value;
+						const phone = document.getElementById('quick_supplier_phone').value;
+						const email = document.getElementById('quick_supplier_email').value;
+						
+						if(!name) {
+							document.getElementById('quickSupplierError').textContent = "Vui lòng nhập tên NCC";
+							return;
+						}
+
+						const formData = new FormData();
+						formData.append('supplier_name', name);
+						formData.append('phone', phone);
+						formData.append('email', email);
+
+						// 2. Gửi AJAX (Dùng lại route cũ trong app.py)
+						fetch("{{ url_for('ajax_add_supplier') }}", {
+							method: 'POST',
+							body: formData
+						})
+						.then(response => response.json())
+						.then(data => {
+							if(data.success) {
+								// 3. Thành công: Thêm vào dropdown và chọn nó
+								const select = document.getElementById('supplier_id');
+								const option = document.createElement('option');
+								option.value = data.new_id;
+								option.text = data.new_name;
+								option.selected = true;
+								select.appendChild(option);
+								
+								// 4. Đóng modal
+								// (Đảm bảo bạn dùng đúng cú pháp Bootstrap 5)
+								const modalEl = document.getElementById('quickAddSupplierModal');
+								const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+								modalInstance.hide();
+								
+								document.getElementById('quickAddSupplierForm').reset();
+							} else {
+								alert('Lỗi: ' + data.error);
+							}
+						})
+						.catch(err => {
+							console.error(err);
+							alert('Lỗi kết nối server');
+						});
+					});
+				}
+			});
+		</script>
+	{% endblock %}
+
+{% endblock %}

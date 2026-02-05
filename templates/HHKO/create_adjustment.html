@@ -1,0 +1,102 @@
+{% extends 'UI/base.html' %}
+{% block title %}Tạo Phiếu Điều chỉnh Kho{% endblock %}
+
+{% block content %}
+    <h1>📤 Tạo Phiếu Điều chỉnh / Xuất Hủy</h1>
+    <div class="alert alert-warning py-2">
+        <small>💡 Nhập số <strong>Âm (ví dụ -10)</strong> để xuất hủy/hư hỏng. Nhập số <strong>Dương (ví dụ 5)</strong> nếu kiểm kho thấy thừa.</small>
+    </div>
+
+    <form action="{{ url_for('submit_adjustment_slip') }}" method="POST">
+        <div class="container">
+            <div class="row mb-4 bg-light p-3 rounded shadow-sm">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Ngày điều chỉnh:</label>
+                    <input type="date" name="adjustment_date" required class="form-control" value="{{ today }}">
+                </div>
+                <div class="col-md-8 d-flex align-items-end justify-content-end">
+                    <button type="submit" class="btn btn-danger btn-lg">LƯU PHIẾU ĐIỀU CHỈNH</button>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h3>Chi tiết Vật tư</h3>
+                <button type="button" id="add_row_btn" class="btn btn-primary">+ Thêm dòng</button>
+            </div>
+            
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th style="width: 35%;">Vật tư</th>
+                        <th style="width: 10%;">ĐV tính</th>
+                        <th style="width: 10%;">Tồn hiện tại</th>
+                        <th style="width: 15%;">Số lượng (+/-)</th>
+                        <th style="width: 25%;">Lý do điều chỉnh</th>
+                        <th style="width: 5%;">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="adj_items_body">
+                    </tbody>
+            </table>
+        </div>
+    </form>
+
+    <table style="display: none;">
+        <tr id="row_template">
+            <td>
+                <select name="material_id[]" class="form-select material-select" required onchange="updateInfo(this)">
+                    <option value="" data-unit="" data-stock="">-- Chọn vật tư --</option>
+                    {% for m in materials_list %}
+                        <option value="{{ m.material_id }}" data-unit="{{ m.base_unit }}" data-stock="{{ m.stock_quantity }}">
+                            {{ m.material_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="text" class="form-control unit-display text-center" readonly style="background: #eee;">
+            </td>
+            <td>
+                <input type="text" class="form-control stock-display text-center" readonly style="background: #eee; font-weight: bold;">
+            </td>
+            <td>
+                <input type="number" name="quantity_adjusted[]" class="form-control" placeholder="-10" required>
+            </td>
+            <td>
+                <input type="text" name="reason[]" class="form-control" placeholder="VD: Hư hỏng, Kẹt giấy..." required>
+            </td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteRow(this)">X</button>
+            </td>
+        </tr>
+    </table>
+
+    <script>
+        // 1. Hàm thêm dòng
+        document.getElementById('add_row_btn').addEventListener('click', function() {
+            const template = document.getElementById('row_template');
+            const newRow = template.cloneNode(true);
+            newRow.removeAttribute('id');
+            document.getElementById('adj_items_body').appendChild(newRow);
+        });
+
+        // 2. Hàm xóa dòng
+        window.deleteRow = function(btn) {
+            btn.closest('tr').remove();
+        }
+
+        // 3. Hàm cập nhật thông tin (Đơn vị & Tồn kho) khi chọn vật tư
+        window.updateInfo = function(select) {
+            const option = select.options[select.selectedIndex];
+            const unit = option.getAttribute('data-unit');
+            const stock = option.getAttribute('data-stock');
+            
+            const row = select.closest('tr');
+            row.querySelector('.unit-display').value = unit || '...';
+            row.querySelector('.stock-display').value = stock || '...';
+        }
+
+        // Thêm 1 dòng mặc định
+        document.getElementById('add_row_btn').click();
+    </script>
+{% endblock %}

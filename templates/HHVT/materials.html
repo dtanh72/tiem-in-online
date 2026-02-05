@@ -1,0 +1,115 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ VẬT TƯ{% endblock %}
+
+{% block content %}
+
+    <h1>Trang Quản Lý Vật Tư</h1>
+
+    <h2>Thêm Vật Tư Mới</h2>
+    <form action="/add_material" method="POST" class="card card-body bg-light mb-4">
+        <div class="mb-3">
+            <label class="form-label">Tên Vật tư:</label><br>
+            <input type="text" name="material_name" class="form-control" required>
+        </div>
+		<div class="mb-3">
+			<label for="material_type" class="form-label">Loại Vật tư:</label>
+			<select id="material_type" name="material_type" class="form-select" onchange="toggleLifespanField()">
+				<option value="production">Vật tư Sản xuất (để bán)</option>
+				<option value="maintenance">Linh kiện Bảo trì (nội bộ)</option>
+			</select>
+		</div>
+		<div class="mb-3" id="lifespan_field_wrapper" style="display: none;">
+			<label for="lifespan_prints" class="form-label">Vòng đời (Số bản in/photo):</label>
+			<input type="number" id="lifespan_prints" name="lifespan_prints" class="form-control" value="0">
+		</div>
+        <div class="mb-3">
+            <label class="form-label">Đơn vị cơ sở (để trừ kho):</label><br>
+            <input type="text" name="base_unit" placeholder="Ví dụ: tờ, ml, gram" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Đơn vị nhập (để mua hàng):</label><br>
+            <input type="text" name="import_unit" class="form-control" placeholder="Ví dụ: ram, hộp, cuộn">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Hệ số quy đổi (1 ĐV Nhập = ? ĐV Cơ sở):</label><br>
+            <input type="number" step="0.01" name="import_conversion_factor" value="1" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Tồn kho ban đầu (tính theo ĐV Cơ sở):</label><br>
+            <input type="number" name="stock_quantity" value="0" class="form-control">
+        </div>
+        
+		<button type="submit" class="btn btn-primary">Lưu Vật tư</button>
+    </form>
+
+    <h2>Danh sách Vật tư</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tên Vật tư</th>
+				<th>Loại Vật tư</th>
+                <th>ĐV Cơ sở (Kho)</th>
+                <th>ĐV Nhập (Mua)</th>
+                <th>Hệ số</th>
+                <th>Tồn kho (theo ĐV Cơ sở)</th>
+				<th>Vòng đời (bản in)</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for material in materials_list %}
+            <tr class="{% if not material.is_active %}table-secondary text-muted{% endif %}">
+                <td>{{ material.material_id }}</td>
+                <td class="fw-bold">
+                    {{ material.material_name }}
+                    {% if not material.is_active %}(Đã khóa){% endif %}
+                </td>
+				<td>{{ material.material_type }}</td>
+                <td>{{ material.base_unit }}</td>
+                <td>{{ material.import_unit }}</td>
+                <td>{{ material.import_conversion_factor }}</td>
+                <td>{{ material.stock_quantity }}</td>
+				<td>{{ material.lifespan_prints or 'N/A' }}</td>
+				<td>
+                    {% if material.is_active %}
+                        <a href="/edit_material/{{ material.material_id }}" class="btn btn-sm btn-warning">Sửa</a>
+                    {% endif %}
+
+                    <form action="{{ url_for('toggle_material', id=material.material_id) }}" method="POST" style="display:inline;">
+                        {% if material.is_active %}
+                            <button type="submit" class="btn btn-sm btn-danger" 
+                                    onclick="return confirm('Khóa vật tư này? Nó sẽ ẩn khỏi trang khác.');">
+                                🔒 Khóa
+                            </button>
+                        {% else %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                🔓 Mở lại
+                            </button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+	
+	<script>
+		function toggleLifespanField() {
+			var select = document.getElementById('material_type');
+			var wrapper = document.getElementById('lifespan_field_wrapper');
+			var input = document.getElementById('lifespan_prints');
+			
+			if (select.value === 'maintenance') {
+				wrapper.style.display = 'block'; // Hiện ra
+			} else {
+				wrapper.style.display = 'none'; // Ẩn đi
+				input.value = 0; // Reset
+			}
+		}
+		// Chạy 1 lần khi tải trang (trong trường hợp edit)
+		document.addEventListener('DOMContentLoaded', toggleLifespanField);
+	</script>
+
+{% endblock %}

@@ -1,0 +1,665 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}TẠO ĐƠN HÀNG MỚI{% endblock %}
+
+{% block content %}
+
+    <h1>Tạo Đơn hàng Mới</h1>
+
+    <form action="{{ url_for('submit_order') }}" method="POST">
+        <div class="container">
+            <div class="row mb-3 bg-light p-3 rounded shadow-sm">
+				<div class="col-md-6">					
+					<label class="form-label fw-bold">Thông tin Khách hàng:</label>
+					<div class="input-group">
+                        <select id="customer_id" name="customer_id" required class="form-select">
+                            <option value="">-- Chọn khách hàng --</option>
+                            {% for customer in customers_list %}
+                                <option value="{{ customer.customer_id }}"
+										data-phone="{{ customer.phone or '' }}"
+										data-email="{{ customer.email or '' }}"
+										data-address="{{ customer.address or '' }}"
+										data-company="{{ customer.company_name or '' }}"
+										data-tax="{{ customer.tax_id or '' }}"
+										data-billing="{{ customer.billing_address or '' }}">
+									{{ customer.customer_name }}
+								</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-outline-success" type="button" 
+                                data-bs-toggle="modal" data-bs-target="#quickAddCustomerModal">+</button>
+                    </div>
+					
+					<div id="customer_info_box" class="alert alert-info mt-2 pt-2 pb-2 small" style="display: none;">
+						<div>📞 <strong>SĐT:</strong> <span id="info_phone">...</span></div>
+						<div id="row_company">🏢 <strong>Công ty:</strong> <span id="info_company">...</span></div>
+						<div id="row_tax">📝 <strong>MST:</strong> <span id="info_tax">...</span></div>
+						<div id="row_billing" class="text-danger">🧾 <strong>Đ/C Hóa đơn:</strong> <span id="info_billing">...</span></div>
+						<div>📍 <strong>Địa chỉ Giao Hàng:</strong> <span id="info_address">...</span></div>						
+					</div>
+					
+					 <div class="mt-2">
+                        <label for="notes" class="form-label">Ghi chú:</label>
+                        <textarea id="notes" name="notes" rows="2" class="form-control" placeholder="Ghi chú cho khách..."></textarea>
+                    </div>
+				</div>
+				
+				<div class="col-md-6 text-end">
+					<div class="p-3 border rounded bg-white">
+						<div class="mb-2">
+							<label for="tax_rate" class="fw-bold">Thuế suất VAT (%):</label>
+							<input type="number" id="tax_rate" name="tax_rate" value="10" step="0.1" style="width: 70px;" class="text-center border rounded">
+						</div>
+						
+						<p class="mb-1">Tổng trước thuế: <span id="sub_total" class="fw-bold">0</span> vnđ</p>
+                        <p class="mb-1">Tiền thuế: <span id="tax_amount">0</span> vnđ</p>
+                        
+                        <div class="input-group input-group-sm mt-2">
+						<input type="text" id="coupon_code_input" class="form-control" placeholder="Nhập mã KM">
+						<button class="btn btn-outline-secondary" type="button" id="applyCouponBtn">Áp dụng</button>
+						</div>
+						<div id="coupon_message" class="small mt-1"></div>
+						<div class="mt-2">
+							<small class="text-muted fw-bold">Mã đang chạy:</small>
+							<div class="d-flex flex-wrap gap-1 mt-1 justify-content-end">
+								{% if active_coupons %}
+									{% for coupon in active_coupons %}
+										<span class="badge rounded-pill bg-info text-dark border pointer-cursor" 
+											  style="cursor: pointer;"
+											  onclick="selectCoupon('{{ coupon.code }}')"
+											  title="Đơn tối thiểu: {{ coupon.min_order_value|currency }}">
+											
+											{{ coupon.code }} 
+											(-{{ coupon.discount_value|currency }}{% if coupon.discount_type == 'percent' %}%{% endif %})
+										</span>
+									{% endfor %}
+								{% else %}
+									<small class="text-muted fst-italic">Không có CTKM nào.</small>
+								{% endif %}
+							</div>
+						</div>
+
+						<p class="text-success mt-2">Giảm giá: -<span id="discount_display">0</span> vnđ</p>
+
+						<input type="hidden" name="coupon_code" id="final_coupon_code">
+						<input type="hidden" name="discount_amount" id="final_discount_amount" value="0">
+
+						<hr>
+                        <h3 class="text-danger">Tổng cộng: <span id="grand_total">0</span> vnđ</h3>
+						<button type="submit" class="btn btn-primary">LƯU ĐƠN HÀNG</button>
+					</div>
+				</div>
+            </div>            
+        </div>
+
+        <div class="mb-3" style="margin-top: 20px;">
+            <h2>Chi tiết Đơn hàng</h2>
+            <button class="btn btn-sm btn-outline-success" type="button" 
+					data-bs-toggle="modal" data-bs-target="#quickAddServiceModal">
+				+ Thêm nhanh Dịch vụ MỚI
+			</button>
+            <table id="order_items_table" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 20%;">Dịch vụ</th>
+						<th style="width: 15%;">Máy sử dụng</th>						
+                        <th style="width: 25%;">Chi tiết Số lượng (Nhân dồn)</th>
+                        <th style="width: 15%;">Đơn giá (vnđ)</th>
+                        <th style="width: 20%;">Thành tiền (vnđ)</th>
+                        <th style="width: 5%;">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="order_items_body">
+                    </tbody>
+            </table>
+            
+            <button type="button" id="add_service_btn" class="btn btn-primary">+ Thêm Dịch vụ cho đơn hàng</button>
+        </div>			
+    </form>
+
+    <table hidden class="table table-striped table-hover">
+        <tr id="service_row_template">
+            <td>
+				<select name="service_id[]" class="service_select form-select" required>
+					<option value="">-- Chọn dịch vụ --</option>
+					{% for service in services_list %}
+						<option value="{{ service.service_id }}" 
+								data-price="{{ service.base_price }}" 
+								data-u1="{{ service.unit }}"
+								data-u2="{{ service.unit_level2 or '' }}"
+								data-u3="{{ service.unit_level3 or '' }}">
+							{{ service.service_name }}
+						</option>
+					{% endfor %}
+				</select>
+			</td>
+			<td>
+				<select name="equipment_id[]" class="form-select">
+					<option value="">-- Không chọn máy --</option>
+					{% for eq in equipment_list %}
+						<option value="{{ eq.equipment_id }}">{{ eq.equipment_name }}</option>
+					{% endfor %}
+				</select>
+			</td>
+			
+			<td>
+				<div class="qty-container d-flex gap-2">
+					<div class="input-group input-group-sm">
+						<input type="number" class="form-control qty-input qty-l1" value="1" min="1" placeholder="1">
+						<span class="input-group-text u1-label">...</span>
+					</div>
+					
+					<div class="input-group input-group-sm qty-wrapper-l2" style="display:none;">
+						<span class="input-group-text">x</span>
+						<input type="number" class="form-control qty-input qty-l2" value="1" min="1">
+						<span class="input-group-text u2-label">...</span>
+					</div>
+
+					<div class="input-group input-group-sm qty-wrapper-l3" style="display:none;">
+						<span class="input-group-text">x</span>
+						<input type="number" class="form-control qty-input qty-l3" value="1" min="1">
+						<span class="input-group-text u3-label">...</span>
+					</div>
+				</div>
+				<input type="hidden" name="quantity[]" class="final-qty" value="1">
+				<input type="hidden" name="qty_l1[]" class="h-qty-l1" value="1">
+				<input type="hidden" name="qty_l2[]" class="h-qty-l2" value="1">
+				<input type="hidden" name="qty_l3[]" class="h-qty-l3" value="1">
+				<small class="text-muted">Tổng: <span class="total-qty-display">1</span> <span class="base-unit-display"></span></small>
+			</td>
+			<td>
+				<input type="number" name="unit_price[]" class="price_input form-control" required>
+			</td>
+			<td>
+				<input type="text" class="line_total_display form-control" value="0" readonly>
+			</td>
+			<td>
+				<button type="button" class="delete-row-btn btn btn-danger" onclick="deleteRow(this)">X</button>
+			</td>
+        </tr>
+    </table>
+	
+	<div class="modal fade" id="quickAddCustomerModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm nhanh Khách hàng</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="quickAddCustomerForm">
+                        <div class="mb-3">
+                            <label for="quick_customer_name" class="form-label">Tên Khách hàng:</label>
+                            <input type="text" id="quick_customer_name" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="quick_customer_phone" class="form-label">Số điện thoại:</label>
+                            <input type="text" id="quick_customer_phone" class="form-control" required>
+                        </div>
+                        <div id="quickAddError" class="text-danger"></div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" id="saveQuickAddCustomer" class="btn btn-primary">Lưu Khách hàng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+	
+	<div class="modal fade" id="quickAddServiceModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Thêm nhanh Dịch vụ</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form id="quickAddServiceForm">
+						<div class="mb-3">
+							<label class="form-label">Tên Dịch vụ:</label>
+							<input type="text" id="qs_name" class="form-control" required>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Đơn giá (vnđ):</label>
+							<input type="number" id="qs_price" class="form-control" value="0">
+						</div>
+						
+						<div class="row">
+							<div class="col-md-4 mb-3">
+								<label class="form-label small">ĐV Tầng 1 (Cơ sở):</label>
+								<input type="text" id="qs_unit" class="form-control" required placeholder="Tờ">
+							</div>
+							<div class="col-md-4 mb-3">
+								<label class="form-label small">ĐV Tầng 2 (x):</label>
+								<input type="text" id="qs_unit2" class="form-control" placeholder="Cuốn">
+							</div>
+							<div class="col-md-4 mb-3">
+								<label class="form-label small">ĐV Tầng 3 (x):</label>
+								<input type="text" id="qs_unit3" class="form-control" placeholder="Bộ">
+							</div>
+						</div>
+						</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" id="saveQuickService" class="btn btn-primary">Lưu</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+    <script>
+        // Chờ trang tải xong
+        document.addEventListener('DOMContentLoaded', function() {
+            
+			// 1. Lắng nghe sự kiện chọn khách hàng
+			const customerSelect = document.getElementById('customer_id');
+			const infoBox = document.getElementById('customer_info_box');
+			
+			// Các thẻ span hiển thị
+			const infoPhone = document.getElementById('info_phone');
+			const infoCompany = document.getElementById('info_company');
+			const infoTax = document.getElementById('info_tax');
+			const infoAddress = document.getElementById('info_address');
+			
+			const rowCompany = document.getElementById('row_company');
+			const rowTax = document.getElementById('row_tax');
+
+			customerSelect.addEventListener('change', function() {
+				const opt = this.options[this.selectedIndex];
+				
+				if (this.value) {
+					// Lấy dữ liệu từ data attributes
+					const phone = opt.getAttribute('data-phone');
+					const email = opt.getAttribute('data-email'); // Có thể hiển thị nếu muốn
+					const address = opt.getAttribute('data-address');
+					const company = opt.getAttribute('data-company');
+					const tax = opt.getAttribute('data-tax');
+					
+					// 1. LẤY DỮ LIỆU MỚI
+					const billing = opt.getAttribute('data-billing'); 
+
+					// 2. HIỂN THỊ RA
+					document.getElementById('info_billing').textContent = billing || '--- (Giống địa chỉ giao hàng)';
+					
+					// 3. ẨN/HIỆN DÒNG NÀY (Nếu không có thì ẩn cho gọn)
+					const rowBilling = document.getElementById('row_billing');
+					if (rowBilling) {
+						 // Logic: Nếu có địa chỉ hóa đơn thì hiện, không thì ẩn
+						rowBilling.style.display = billing ? 'block' : 'none';
+					}
+
+					// Điền dữ liệu
+					infoPhone.textContent = phone || '---';
+					infoAddress.textContent = address || '---';
+					infoCompany.textContent = company;
+					infoTax.textContent = tax;
+
+					// Ẩn/Hiện dòng Công ty & MST nếu không có dữ liệu cho gọn
+					rowCompany.style.display = company ? 'block' : 'none';
+					rowTax.style.display = tax ? 'block' : 'none';
+
+					// Hiện khung
+					infoBox.style.display = 'block';
+				} else {
+					// Ẩn khung nếu chưa chọn
+					infoBox.style.display = 'none';
+				}
+			});
+			
+            // Lấy các phần tử quan trọng
+            const addBtn = document.getElementById('add_service_btn');
+            const tableBody = document.getElementById('order_items_body');
+            const templateRow = document.getElementById('service_row_template');
+            
+			// Lấy thêm ô Thuế
+            const taxRateInput = document.getElementById('tax_rate');
+			
+            // 1. CHỨC NĂNG: Thêm một dòng dịch vụ mới
+            function addNewServiceRow() {
+                // "Clone" (sao chép) dòng template
+                const newRow = templateRow.cloneNode(true);
+                newRow.id = ''; // Xóa ID của template
+                newRow.classList.add('service-row'); // Thêm class để dễ tính toán
+                tableBody.appendChild(newRow); // Thêm vào bảng
+                
+                // Gắn các "tai nghe" sự kiện cho dòng mới này
+                attachRowListeners(newRow);
+            }
+            
+            // 2. CHỨC NĂNG: Gắn các "tai nghe" (Event Listeners)
+            function attachRowListeners(row) {
+                const serviceSelect = row.querySelector('.service_select');
+				const priceInput = row.querySelector('.price_input');
+				
+				// Các phần tử số lượng
+				const qtyL1 = row.querySelector('.qty-l1');
+				const qtyL2 = row.querySelector('.qty-l2');
+				const qtyL3 = row.querySelector('.qty-l3');
+				const wrapL2 = row.querySelector('.qty-wrapper-l2');
+				const wrapL3 = row.querySelector('.qty-wrapper-l3');
+				const lblU1 = row.querySelector('.u1-label');
+				const lblU2 = row.querySelector('.u2-label');
+				const lblU3 = row.querySelector('.u3-label');
+				const finalQtyInput = row.querySelector('.final-qty');
+				const totalQtyDisplay = row.querySelector('.total-qty-display');
+				const baseUnitDisplay = row.querySelector('.base-unit-display');
+
+				// Hàm con: Tính lại tổng số lượng của dòng này
+				function updateRowQuantity() {
+					const v1 = parseFloat(qtyL1.value) || 0;
+					const v2 = (wrapL2.style.display !== 'none') ? (parseFloat(qtyL2.value) || 1) : 1;
+					const v3 = (wrapL3.style.display !== 'none') ? (parseFloat(qtyL3.value) || 1) : 1;
+					
+					// Cập nhật input ẩn để gửi về server
+					row.querySelector('.h-qty-l1').value = v1;
+					row.querySelector('.h-qty-l2').value = v2;
+					row.querySelector('.h-qty-l3').value = v3;
+					
+					const total = v1 * v2 * v3;
+					
+					finalQtyInput.value = total; // Lưu vào input ẩn để gửi đi
+					totalQtyDisplay.textContent = total.toLocaleString('vi-VN');
+					
+					updateCalculations(); // Gọi hàm tính tiền tổng của cả đơn
+				}
+
+				// Sự kiện: Khi chọn dịch vụ
+				serviceSelect.addEventListener('change', function() {
+					const opt = this.options[this.selectedIndex];
+					const u1 = opt.getAttribute('data-u1');
+					const u2 = opt.getAttribute('data-u2');
+					const u3 = opt.getAttribute('data-u3');
+					const price = opt.getAttribute('data-price');
+
+					// Cập nhật giá
+					priceInput.value = parseFloat(price).toFixed(0);
+
+					// Cập nhật nhãn và ẩn/hiện các ô nhập
+					lblU1.textContent = u1;
+					baseUnitDisplay.textContent = u1;
+
+					if (u2) {
+						wrapL2.style.display = 'flex';
+						lblU2.textContent = u2;
+					} else {
+						wrapL2.style.display = 'none';
+						qtyL2.value = 1;
+					}
+
+					if (u3) {
+						wrapL3.style.display = 'flex';
+						lblU3.textContent = u3;
+					} else {
+						wrapL3.style.display = 'none';
+						qtyL3.value = 1;
+					}
+					
+					updateRowQuantity();
+				});
+
+				// Sự kiện: Khi nhập số ở bất kỳ tầng nào
+				qtyL1.addEventListener('input', updateRowQuantity);
+				qtyL2.addEventListener('input', updateRowQuantity);
+				qtyL3.addEventListener('input', updateRowQuantity);
+				
+				// Sự kiện giá thay đổi
+				priceInput.addEventListener('input', updateCalculations);
+            }
+            
+			let currentDiscount = 0; // Biến toàn cục lưu tiền giảm
+			
+            // Sửa hàm updateCalculations (Đơn giản hơn vì đã có input ẩn final-qty)
+            function updateCalculations() {
+				let subTotal = 0;
+				const allRows = document.getElementById('order_items_body').querySelectorAll('.service-row');
+				
+				allRows.forEach(function(row) {
+					// Lấy giá trị từ input ẩn (đã được tính toán ở trên)
+					const quantity = parseFloat(row.querySelector('.final-qty').value) || 0;
+					const price = parseFloat(row.querySelector('.price_input').value) || 0;
+					const lineTotal = quantity * price;
+					
+					row.querySelector('.line_total_display').value = lineTotal.toLocaleString('vi-VN');
+					subTotal += lineTotal;
+				});
+				
+				// ... (Phần tính thuế và tổng cộng giữ nguyên) ...
+				const taxRate = parseFloat(document.getElementById('tax_rate').value) || 0;
+				const taxAmount = subTotal * (taxRate / 100);
+				
+				// Tính Tổng sau thuế TRƯỚC KHI TRỪ KHUYẾN MÃI
+				let totalWithType = subTotal + taxAmount;
+				
+				// Trừ giảm giá
+				// (Nếu giảm giá lớn hơn tổng tiền thì giảm tối đa bằng tổng tiền)
+				let finalDiscount = currentDiscount;
+				if (finalDiscount > totalWithType) finalDiscount = totalWithType;
+				
+				const grandTotal = totalWithType - finalDiscount;
+				
+				document.getElementById('sub_total').textContent = subTotal.toLocaleString('vi-VN');
+				document.getElementById('tax_amount').textContent = taxAmount.toLocaleString('vi-VN');
+				
+				document.getElementById('discount_display').textContent = finalDiscount.toLocaleString('vi-VN');
+				document.getElementById('final_discount_amount').value = finalDiscount; // Cập nhật input ẩn
+				
+				document.getElementById('grand_total').textContent = (subTotal + taxAmount).toLocaleString('vi-VN');
+            }
+			
+			// 2. Xử lý nút Áp dụng Mã
+			document.getElementById('applyCouponBtn').addEventListener('click', function() {
+				const code = document.getElementById('coupon_code_input').value;
+				// Lấy tổng tiền hiện tại (gồm cả thuế hoặc chưa tùy chính sách, ở đây lấy subTotal cho an toàn)
+				// Lưu ý: Phải parse lại từ text hoặc tính lại subTotal.
+				// Cách tốt nhất: Gọi hàm tính subTotal nhanh tại đây
+				let tempSubTotal = 0;
+				document.querySelectorAll('.line_total_display').forEach(el => {
+					tempSubTotal += parseFloat(el.value.replace(/\./g, '').replace(/,/g, '')) || 0; // Xử lý xóa dấu phẩy nếu có
+				});
+				// Hoặc đơn giản hơn: Lấy giá trị thô từ phép tính trước nếu bạn lưu biến toàn cục. 
+				// Ở đây ta dùng DOM trick:
+				const subTotalText = document.getElementById('sub_total').textContent.replace(/\./g, '').replace(/,/g, '');
+				const currentTotal = parseFloat(subTotalText) || 0;
+
+				if (!code) return;
+
+				const formData = new FormData();
+				formData.append('code', code);
+				formData.append('order_total', currentTotal);
+
+				fetch("{{ url_for('check_coupon') }}", { method: 'POST', body: formData })
+				.then(res => res.json())
+				.then(data => {
+					const msgDiv = document.getElementById('coupon_message');
+					if (data.valid) {
+						msgDiv.className = 'small mt-1 text-success';
+						msgDiv.textContent = data.message;
+						
+						// Cập nhật biến toàn cục & Input ẩn
+						currentDiscount = data.discount_amount;
+						document.getElementById('final_coupon_code').value = data.code;
+						
+						// Tính lại tổng tiền
+						updateCalculations();
+					} else {
+						msgDiv.className = 'small mt-1 text-danger';
+						msgDiv.textContent = data.message;
+						currentDiscount = 0;
+						document.getElementById('final_coupon_code').value = '';
+						updateCalculations();
+					}
+				});
+			});
+            
+            // Gắn "tai nghe" cho nút "Thêm Dịch vụ"
+            addBtn.addEventListener('click', addNewServiceRow);
+			
+			// Gắn "tai nghe" cho ô THUẾ
+            taxRateInput.addEventListener('change', updateCalculations);
+            
+            // Tự động thêm 1 dòng đầu tiên khi tải trang
+            addNewServiceRow();
+			
+			// (Hàm deleteRow cũng cần được sửa để gọi updateCalculations())
+            window.deleteRow = function(btn) { // Gán vào window để onclick có thể thấy
+                const row = btn.closest('tr');
+                row.remove();
+                updateCalculations(); // Gọi hàm tính toán chính
+            }
+			
+			// === CODE JAVASCRIPT AJAX CHO KHÁCH HÀNG (MỚI) ===
+			// Code xử lý Modal
+            const saveBtn = document.getElementById('saveQuickAddCustomer');
+            const mainCustomerSelect = document.getElementById('customer_id');
+            const quickAddForm = document.getElementById('quickAddCustomerForm');
+            const quickAddModal = new bootstrap.Modal(document.getElementById('quickAddCustomerModal'));
+            const errorDiv = document.getElementById('quickAddError');
+
+            saveBtn.addEventListener('click', function() {
+                const nameInput = document.getElementById('quick_customer_name');
+                const phoneInput = document.getElementById('quick_customer_phone');
+                
+                if (!nameInput.value || !phoneInput.value) {
+                    errorDiv.textContent = 'Vui lòng nhập đủ Tên và SĐT.';
+                    return;
+                }
+                
+                // 1. Tạo dữ liệu Form để gửi đi
+                const formData = new FormData();
+                formData.append('customer_name', nameInput.value);
+                formData.append('phone', phoneInput.value);
+                
+                // 2. Gửi AJAX (Fetch) đến route Python
+                fetch("{{ url_for('ajax_add_customer') }}", {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 3. Nếu thành công:
+                        // 3a. Tạo <option> mới
+                        const newOption = document.createElement('option');
+                        newOption.value = data.new_id;
+                        newOption.textContent = data.new_name;
+                        newOption.selected = true; // Tự động chọn khách vừa thêm
+                        
+                        // 3b. Thêm option vào dropdown chính
+                        mainCustomerSelect.appendChild(newOption);
+                        
+                        // 3c. Dọn dẹp form modal và đóng lại
+                        quickAddForm.reset();
+                        errorDiv.textContent = '';
+                        quickAddModal.hide();
+                    } else {
+                        // 4. Nếu thất bại (ví dụ: trùng SĐT)
+                        errorDiv.textContent = 'Lỗi: ' + data.error;
+                    }
+                })
+                .catch(error => {
+                    errorDiv.textContent = 'Lỗi kết nối: ' + error;
+                });
+            });
+			// === KẾT THÚC CODE KHÁCH HÀNG MỚI ===
+			
+			// === CODE JAVASCRIPT AJAX CHO DỊCH VỤ (MỚI) ===
+			const saveServiceBtn = document.getElementById('saveQuickAddService');
+			const quickAddServiceForm = document.getElementById('quickAddServiceForm');
+			const quickAddServiceModal = new bootstrap.Modal(document.getElementById('quickAddServiceModal'));
+			const serviceErrorDiv = document.getElementById('quickAddServiceError');
+
+			saveServiceBtn.addEventListener('click', function() {
+				// 1. Lấy dữ liệu
+				const nameInput = document.getElementById('quick_service_name');
+				const priceInput = document.getElementById('quick_service_price');
+				const u1 = document.getElementById('qs_unit').value;
+				const u2 = document.getElementById('qs_unit2').value; // Mới
+				const u3 = document.getElementById('qs_unit3').value; // Mới
+				
+				if (!nameInput.value || !priceInput.value || !u1.value) {
+					serviceErrorDiv.textContent = 'Vui lòng nhập đủ các trường.';
+					return;
+				}
+				
+				const formData = new FormData();
+				formData.append('service_name', nameInput.value);
+				formData.append('base_price', priceInput.value);
+				formData.append('unit', u1);
+				formData.append('unit_level2', u2); // Gửi thêm
+				formData.append('unit_level3', u3); // Gửi thêm
+				
+				// 2. Gửi AJAX đến route Python
+				fetch("{{ url_for('ajax_add_service') }}", {
+					method: 'POST',
+					body: formData
+				})
+				.then(response => response.json())
+				.then(data => {
+					if (data.success) {
+						// 3. Tạo option mới với đầy đủ data attributes
+						const opt = document.createElement('option');
+						opt.value = data.new_id;
+						opt.text = data.new_name;
+						opt.selected = true;
+						
+						// QUAN TRỌNG: Cập nhật đầy đủ thông tin đơn vị vào thẻ option
+						opt.setAttribute('data-price', data.new_price);
+						opt.setAttribute('data-u1', data.new_u1);
+						opt.setAttribute('data-u2', data.new_u2);
+						opt.setAttribute('data-u3', data.new_u3);
+
+						// 4. Cập nhật vào tất cả các dropdown đang có
+						// (Nếu ở trang định mức thì ID là 'service_id', nếu ở trang đơn hàng thì class là '.service_select')
+						const singleSelect = document.getElementById('service_id');
+						if (singleSelect) {
+							singleSelect.appendChild(opt);
+							// Kích hoạt sự kiện change để cập nhật giao diện ngay
+							singleSelect.dispatchEvent(new Event('change'));
+						}
+						
+						const listSelects = document.querySelectorAll('.service_select');
+						if (listSelects.length > 0) {
+							listSelects.forEach(s => s.appendChild(opt.cloneNode(true)));
+						}
+
+						// 5. Đóng modal & Reset
+						bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal')).hide();
+						document.getElementById('quickAddServiceForm').reset();
+					} else {
+						serviceErrorDiv.textContent = 'Lỗi: ' + data.error;
+					}
+				})
+				.catch(error => {
+					serviceErrorDiv.textContent = 'Lỗi kết nối: ' + error;
+				});
+			});
+			// === KẾT THÚC CODE DỊCH VỤ MỚI ===
+        });     
+        
+        // Sửa hàm deleteRow để nó tính toán lại
+        function deleteRow(btn) {
+            const row = btn.closest('tr');
+            row.remove();
+            
+            // Tái sử dụng hàm tính toán (cần định nghĩa lại 1 chút)
+            let grandTotal = 0;
+            const allRows = document.getElementById('order_items_body').querySelectorAll('.service-row');
+            allRows.forEach(function(r) {
+                const quantity = parseFloat(r.querySelector('.quantity_input').value) || 0;
+                const price = parseFloat(r.querySelector('.price_input').value) || 0;
+                grandTotal += (quantity * price);
+            });
+            document.getElementById('grand_total').textContent = grandTotal.toLocaleString('vi-VN');
+        }
+		
+		// === HÀM CHỌN MÃ TỪ DANH SÁCH GỢI Ý ===
+		function selectCoupon(code) {
+			// 1. Điền mã vào ô input
+			document.getElementById('coupon_code_input').value = code;
+			
+			// 2. Tự động kích hoạt sự kiện click của nút Áp dụng
+			document.getElementById('applyCouponBtn').click();
+		}
+    </script>
+{% endblock %}

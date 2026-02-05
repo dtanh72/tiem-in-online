@@ -1,0 +1,51 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ KHÁCH HÀNG{% endblock %}
+
+{% block content %}
+
+    <h1>&#128221 Sửa Khách hàng: {{ customer.customer_name }}</h1>
+
+    <form action="/update_customer" method="POST" class="card card-body bg-light mb-4">
+    
+        <input type="hidden" name="customer_id" value="{{ customer.customer_id }}">
+        
+        <div class="mb-3">
+            <label for="customer_name" class="form-label">Tên Khách hàng:</label><br>
+            <input type="text" id="customer_name" name="customer_name" value="{{ customer.customer_name }}" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="phone" class="form-label">Số điện thoại:</label><br>
+            <input type="text" id="phone" name="phone"  class="form-control" value="{{ customer.phone }}">
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email:</label><br>
+            <input type="email" id="email" name="email" class="form-control" value="{{ customer.email }}">
+        </div>
+        <div class="mb-3">
+            <label for="address" class="form-label">Địa chỉ:</label><br>
+            <textarea id="address" name="address" rows="3" class="form-control">{{ customer.address }}</textarea>
+        </div>
+		
+		<div class="ms-3">
+			<div class="bm-3"><h5>&#128203 THÔNG TIN XUẤT HÓA ĐƠN</h5></div>
+			<div class="mb-3">
+				<label for="company_name" class="form-label">Tên Công Ty:</label><br>
+				<input type="text" id="company_name" name="company_name" class="form-control" value="{{ customer.company_name }}">
+			</div>
+			<div class="mb-3">
+				<label for="phone" class="form-label">Mã số thuế:</label><br>
+				<input type="text" id="tax_id" name="tax_id" class="form-control" value="{{ customer.tax_id }}">
+			</div>
+			<div class="mb-3">
+				<label for="billing_address" class="form-label">Địa chỉ Hóa Đơn:</label><br>
+				<textarea id="billing_address" name="billing_address" rows="3" class="form-control">{{ customer.billing_address }}</textarea>
+			</div>
+		</div>
+		
+        <button type="submit" class="btn btn-primary">Cập nhật Khách hàng</button>
+    </form>
+
+    <a href="{{ url_for('customers_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
+
+{% endblock %}

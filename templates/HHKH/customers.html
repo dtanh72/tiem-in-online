@@ -1,0 +1,98 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ KHÁCH HÀNG{% endblock %}
+
+{% block content %}
+
+    <h1>Trang Quản lý Khách hàng</h1>
+
+    <h2>&#129333 Thêm Khách hàng Mới</h2>
+    <form action="/add_customer" method="POST" class="card card-body bg-light mb-4">
+        <div class="mb-3">
+            <label for="customer_name" class="form-label">Tên Khách hàng:</label><br>
+            <input type="text" id="customer_name" name="customer_name" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="phone" class="form-label">Số điện thoại:</label><br>
+            <input type="text" id="phone" name="phone" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email:</label><br>
+            <input type="email" id="email" name="email" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label for="address" class="form-label">Địa chỉ:</label><br>
+            <textarea id="address" name="address" rows="3" class="form-control"></textarea>
+        </div>
+		<div class="ms-3">
+			<div class="bm-3"><h5>&#128203 THÔNG TIN XUẤT HÓA ĐƠN</h5></div>
+			<div class="mb-3">
+				<label for="company_name" class="form-label">Tên Công Ty:</label><br>
+				<input type="text" id="company_name" name="company_name" class="form-control">
+			</div>
+			<div class="mb-3">
+				<label for="phone" class="form-label">Mã số thuế:</label><br>
+				<input type="text" id="tax_id" name="tax_id" class="form-control">
+			</div>
+			<div class="mb-3">
+				<label for="billing_address" class="form-label">Địa chỉ Hóa Đơn:</label><br>
+				<textarea id="billing_address" name="billing_address" rows="3" class="form-control"></textarea>
+			</div>
+		</div>
+        
+		<button type="submit" class="btn btn-primary">Lưu Khách hàng</button>
+    </form>
+
+    <h2>&#128195 Danh sách Khách hàng</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Tên Khách hàng</th>
+                <th>Số điện thoại</th>
+                <th>Email</th>
+                <th>Địa chỉ</th>
+				<th>Công Ty</th>
+				<th>MST</th>
+				<th>Địa chỉ CTY</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customers_list %}
+            <tr class="{% if not customer.is_active %}table-secondary text-muted{% endif %}">
+                <td>{{ customer.customer_id }}</td>
+				<td class="fw-bold">
+                    {{ customer.customer_name }}
+                    {% if not customer.is_active %}(Đã khóa){% endif %}
+                </td>
+                <td>{{ customer.phone }}</td>
+                <td>{{ customer.email }}</td>
+                <td>{{ customer.address }}</td>
+				<td>{{ customer.company_name }}</td>
+                <td>{{ customer.tax_id }}</td>
+                <td>{{ customer.billing_address }}</td>
+				<td>
+                    {% if customer.is_active %}
+                        <a href="/edit_customer/{{ customer.customer_id }}" class="btn btn-sm btn-warning">Sửa</a>
+                    {% endif %}
+
+                    <form action="{{ url_for('toggle_customer', id=customer.customer_id) }}" method="POST" style="display:inline;">
+                        {% if customer.is_active %}
+                            <button type="submit" class="btn btn-sm btn-danger" 
+                                    onclick="return confirm('Khóa khách hàng này? Nó sẽ ẩn khỏi các trang khác.');">
+                                🔒 Khóa
+                            </button>
+                        {% else %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                🔓 Mở lại
+                            </button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}

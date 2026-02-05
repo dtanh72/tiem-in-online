@@ -1,0 +1,232 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}CẬP NHẬT BÁO GIÁ{% endblock %}
+
+{% block content %}
+
+    <h1>Cập nhật Báo giá #{{ quote_info.quote_id }} (Lần {{ quote_info.update_count + 1 }})</h1>
+
+    <form action="{{ url_for('update_quote', quote_id=quote_info.quote_id) }}" method="POST" class="card card-body bg-light mb-4">
+        <div class="container" class="mb-3">
+            <div class="mb-3" style="flex: 1;">
+                <h2>Thông tin Khách hàng</h2>				
+                <label for="customer_id" class="form-label">Chọn Khách hàng:</label><br>
+                <select id="customer_id" name="customer_id" required class="form-select">
+					<option value="">-- Chọn khách hàng --</option>
+					{% for customer in customers_list %}
+						<option value="{{ customer.customer_id }}"
+								{% if customer.customer_id == quote_info.customer_id %}selected{% endif %}>
+							{{ customer.customer_name }}
+						</option>
+					{% endfor %}
+				</select>
+				<div class="mb-4">
+                    <label for="tax_rate" class="form-label">Thuế suất VAT (%):</label><br>
+                    <input type="number" id="tax_rate" name="tax_rate" value="{{ quote_info.tax_rate }}" step="0.1" class="form-control">
+                </div>
+				<label for="notes" class="form-label mb-3">Ghi chú Báo giá:</label><br>
+				<textarea id="notes" name="notes" rows="3" class="form-control">{{ quote_info.notes }}</textarea>
+            </div>            
+        </div>
+
+        <div class="mb-3" style="margin-top: 20px;">
+            <h2>Chi tiết Báo Giá</h2>
+            
+            <table id="order_items_table" class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Dịch vụ</th>
+                        <th style="width: 15%;">Số lượng</th>
+                        <th style="width: 20%;">Đơn giá (vnđ)</th>
+                        <th style="width: 20%;">Thành tiền (vnđ)</th>
+                        <th style="width: 5%;">Xóa</th>
+                    </tr>
+                </thead>
+                <tbody id="order_items_body">
+                    </tbody>
+            </table>
+            
+            <button type="button" id="add_service_btn" class="btn btn-primary">+ Thêm Dịch vụ</button>
+        </div>
+		
+		<div class="mb-3 form-section" style="flex: 1;">
+			<h2>Tổng cộng</h2>
+			<div id="total-section" style="text-align: right;" class="mb-3">
+				<p>Tổng trước thuế: <span id="sub_total">0</span> vnđ</p>
+				<p>Tiền thuế (<span id="tax_rate_display">10</span>%): <span id="tax_amount">0</span> vnđ</p>
+				<hr>
+				<h3>Tổng Tiền: <span id="grand_total">0</span> vnđ</h3>				
+			</div>
+		</div>
+		<button type="submit" class="btn btn-primary">LƯU BÁO GIÁ</button>
+    </form>
+
+    <table hidden class="table table-striped table-hover">
+        <tr id="service_row_template">
+            <td>
+                <select name="service_id[]" class="service_select" required>
+                    <option value="">-- Chọn dịch vụ --</option>
+                    {% for service in services_list %}
+                        <option value="{{ service.service_id }}" data-price="{{ service.base_price }}" data-unit="{{ service.unit }}">
+                            {{ service.service_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </td>
+            <td>
+                <input type="number" name="quantity[]" class="quantity_input" value="1" min="1" required>
+            </td>
+            <td>
+                <input type="number" name="unit_price[]" class="price_input" required>
+            </td>
+            <td>
+                <input type="text" class="line_total_display" value="0" readonly style="background: #eee; border: none;">
+            </td>
+            <td>
+                <button type="button" class="btn btn-sm btn-danger" onclick="deleteRow(this)">X</button>
+            </td>
+        </tr>
+    </table>
+
+    <script>
+        // Chờ trang tải xong
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // 1. TÌM TẤT CẢ CÁC PHẦN TỬ (Elements)
+            const addBtn = document.getElementById('add_service_btn');
+            const tableBody = document.getElementById('order_items_body');
+            const templateRow = document.getElementById('service_row_template');
+			const taxRateInput = document.getElementById('tax_rate');
+			
+			// 2. ĐỊNH NGHĨA TẤT CẢ CÁC HÀM TRƯỚC
+			// a. CHỨC NĂNG: Thêm một dòng dịch vụ mới
+            function addNewServiceRow() {
+                // "Clone" (sao chép) dòng template
+                const newRow = templateRow.cloneNode(true);
+                newRow.id = ''; // Xóa ID của template
+                newRow.classList.add('service-row'); // Thêm class để dễ tính toán
+                tableBody.appendChild(newRow); // Thêm vào bảng
+                
+                // Gắn các "tai nghe" sự kiện cho dòng mới này
+                attachRowListeners(newRow);
+				
+				return newRow; // <-- THÊM DÒNG NÀY
+            }
+			
+			// b. CHỨC NĂNG: Gắn các "tai nghe" (Event Listeners)
+            function attachRowListeners(row) {
+                const serviceSelect = row.querySelector('.service_select');
+                const quantityInput = row.querySelector('.quantity_input');
+                const priceInput = row.querySelector('.price_input');
+                
+                // "Tai nghe 1": Khi chọn dịch vụ
+                serviceSelect.addEventListener('change', function() {
+                    const selectedOption = this.options[this.selectedIndex];
+                    const price = selectedOption.getAttribute('data-price');
+                    // Tự động điền giá
+                    priceInput.value = parseFloat(price).toFixed(0); 
+                    // Tính toán lại
+                    updateCalculations();
+                });
+                
+                // "Tai nghe 2": Khi thay đổi số lượng
+                quantityInput.addEventListener('change', updateCalculations);
+                // "Tai nghe 3": Khi tự sửa giá
+                priceInput.addEventListener('change', updateCalculations);
+            }
+			
+			// c. CHỨC NĂNG: Tính toán lại toàn bộ
+            function updateCalculations() {
+                //let grandTotal = 0;
+				let subTotal = 0;
+                
+                // Lặp qua TẤT CẢ các dòng dịch vụ có trong bảng
+                const allRows = tableBody.querySelectorAll('.service-row');
+                allRows.forEach(function(row) {
+                    const quantity = parseFloat(row.querySelector('.quantity_input').value) || 0;
+                    const price = parseFloat(row.querySelector('.price_input').value) || 0;
+                    const lineTotal = quantity * price;
+                    
+                    // Hiển thị thành tiền của dòng này
+                    row.querySelector('.line_total_display').value = lineTotal.toLocaleString('vi-VN');
+                    
+                    // Cộng dồn vào tổng cộng
+                    //grandTotal += lineTotal;
+					subTotal += lineTotal;
+                });
+                
+				// Lấy thuế suất
+                const taxRate = parseFloat(taxRateInput.value) || 0;
+                const taxAmount = subTotal * (taxRate / 100);
+                const grandTotal = subTotal + taxAmount;
+				
+                // Hiển thị Tổng cộng
+				document.getElementById('sub_total').textContent = subTotal.toLocaleString('vi-VN');
+                document.getElementById('tax_rate_display').textContent = taxRate;
+                document.getElementById('tax_amount').textContent = taxAmount.toLocaleString('vi-VN');
+                document.getElementById('grand_total').textContent = grandTotal.toLocaleString('vi-VN');
+            }
+			
+			// 3. GẮN CÁC TAI NGHE SỰ KIỆN CHÍNH
+			// Gắn "tai nghe" cho nút "Thêm Dịch vụ"
+            addBtn.addEventListener('click', addNewServiceRow);			
+			// Gắn "tai nghe" cho ô THUẾ
+            taxRateInput.addEventListener('change', updateCalculations);
+			
+			// === CODE MỚI ĐỂ ĐỔ DỮ LIỆU CŨ ===
+			// 1. Lấy dữ liệu Python gửi qua
+			const existingItems = {{ quote_items_list|tojson }};
+
+			// 2. Lặp qua dữ liệu cũ
+			if (existingItems && existingItems.length > 0) {
+				existingItems.forEach(item => {
+					// 3. Tạo một dòng mới
+					const newRow = addNewServiceRow();
+					
+					// 4. Đổ dữ liệu của item này vào dòng mới
+					newRow.querySelector('.service_select').value = item.service_id;
+					newRow.querySelector('.quantity_input').value = item.quantity;
+					newRow.querySelector('.price_input').value = item.unit_price;
+				});
+			} else {
+				// Nếu không có item nào, thêm 1 dòng trống
+				addNewServiceRow();
+			}
+			
+			// 5. Tính toán tổng tiền
+			updateCalculations();
+			// === KẾT THÚC CODE MỚI ===	
+            
+            // Tự động thêm 1 dòng đầu tiên khi tải trang
+            //addNewServiceRow();
+        });
+        
+        // 4. CHỨC NĂNG: Xóa một dòng (đặt bên ngoài vì nó được gọi bằng onclick)
+        function deleteRow(btn) {
+            const row = btn.closest('tr'); // Tìm <tr> cha gần nhất
+            row.remove(); // Xóa nó			
+			updateCalculations(); // Gọi hàm tính toán chính
+            
+            // Phải gọi updateCalculations() một lần nữa sau khi xóa
+            // (Chúng ta cần tìm cách gọi nó, tạm thời để đây)
+            // Tạm thời bạn có thể thay đổi số lượng ở dòng khác để nó tính lại
+        }
+        
+        // Sửa hàm deleteRow để nó tính toán lại
+        function deleteRow(btn) {
+            const row = btn.closest('tr');
+            row.remove();
+            
+            // Tái sử dụng hàm tính toán (cần định nghĩa lại 1 chút)
+            let grandTotal = 0;
+            const allRows = document.getElementById('order_items_body').querySelectorAll('.service-row');
+            allRows.forEach(function(r) {
+                const quantity = parseFloat(r.querySelector('.quantity_input').value) || 0;
+                const price = parseFloat(r.querySelector('.price_input').value) || 0;
+                grandTotal += (quantity * price);
+            });
+            document.getElementById('grand_total').textContent = grandTotal.toLocaleString('vi-VN');
+        }
+
+    </script>
+{% endblock %}

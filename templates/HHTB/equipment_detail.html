@@ -1,0 +1,324 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ TRANG THIẾT BỊ{% endblock %}
+
+{% block content %}
+
+    <h1>{{ equipment_info.equipment_name }}</h1>
+    <a href="{{ url_for('equipment_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Danh sách Thiết bị</a>
+
+    <div class="mb-3">
+        <div class="equipment-info">
+			<div class="d-flex justify-content-between align-items-start">
+				<h2>Thông tin Thiết bị</h2>
+				<button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editInfoModal">
+					✏️ Sửa thông tin
+				</button>
+			</div>
+			
+			<div class="row">
+				<div class="col-md-6">
+					<p><strong>Model:</strong> {{ equipment_info.model_number }}</p>
+					<p><strong>IP:</strong> {{ equipment_info.ip_address or 'Chưa có' }}</p>
+					<p><strong>Serial:</strong> {{ equipment_info.serial_number or 'Chưa có' }}</p>
+				</div>
+				<div class="col-md-6">
+					<p><strong>Ngày mua:</strong> {{ equipment_info.purchase_date }}</p>
+					<p><strong>Trạng thái:</strong> {{ equipment_info.status }}</p>
+					<p><strong>NCC:</strong> {{ equipment_info.supplier_name or 'N/A' }}</p>
+				</div>
+			</div>
+
+			<p class="fs-4 text-primary mt-2">
+				<strong>Bộ đếm:</strong> {{ equipment_info.print_count|currency }} bản in
+			</p>
+		</div>
+
+        <div class="log-form">
+            <h2>Thêm Nhật ký Bảo trì Mới</h2>
+            <form action="{{ url_for('add_maintenance_log') }}" method="POST" class="card card-body bg-light mb-4">
+                
+                <input type="hidden" name="equipment_id" value="{{ equipment_info.equipment_id }}">
+                <div class="mb-3">
+					<label for="current_machine_counter" class="form-label text-primary fw-bold">Counter hiện tại của máy:</label>
+					<input type="number" id="current_machine_counter" name="current_machine_counter" 
+						   class="form-control" required 
+						   value="{{ equipment_info.print_count }}"> 
+						   <small class="text-muted">Nhập số counter thực tế trên đồng hồ máy lúc bảo trì.</small>
+				</div>
+				
+                <div class="mb-3">
+                    <label for="maintenance_date" class="form-label">Ngày bảo trì:</label><br>
+                    <input type="date" id="maintenance_date" class="form-control" name="maintenance_date" required>
+                </div>
+                <div class="mb-3">
+                    <label for="description" class="form-label">Mô tả công việc:</label><br>
+                    <textarea id="description" class="form-control" name="description" rows="3" required placeholder="Ví dụ: Thay trống (drum) màu đen"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="cost" class="form-label">Chi phí (vnđ):</label><br>
+                    <input type="number" id="cost" class="form-control" name="cost" value="0">
+                </div>
+				
+				<div class="mb-3 mt-2">
+					<label class="form-label">Trạng thái thanh toán:</label>
+					<div class="form-check">
+						<input class="form-check-input" type="radio" name="payment_status" id="pay_unpaid" value="unpaid" checked>
+						<label class="form-check-label" for="pay_unpaid">
+							Chưa trả (Ghi công nợ NCC)
+						</label>
+					</div>
+					<div class="form-check">
+						<input class="form-check-input" type="radio" name="payment_status" id="pay_paid" value="paid">
+						<label class="form-check-label text-success" for="pay_paid">
+							Đã thanh toán ngay
+						</label>
+					</div>
+				</div>
+				
+				<div>
+					<label for="supplier_id" class="form-label">Nhà cung cấp (Bảo trì):</label>
+					<div class="input-group mb-3">
+						<select id="supplier_id" name="supplier_id" class="form-select">
+							<option value="">-- Tự làm / Không xác định --</option>
+							{% for supplier in suppliers_list %}
+								<option value="{{ supplier.supplier_id }}">{{ supplier.supplier_name }}</option>
+							{% endfor %}
+						</select>
+						<button class="btn btn-outline-success" type="button" 
+								data-bs-toggle="modal" data-bs-target="#quickAddSupplierModal">+</button>
+					</div>
+				</div>
+                <div class="mb-3">
+                    <label for="technician_name" class="form-label">Kỹ thuật viên:</label><br>
+                    <input type="text" id="technician_name" class="form-control" name="technician_name" placeholder="Ví dụ: Anh Tín (Konica)">
+                </div>
+				<hr>
+				<p><strong>Thông Tin Linh Kiện Thay Thế</strong></p>
+				<div class="mb-3">
+					<label for="replaced_material_id" class="form-label">Linh kiện đã thay:</label>
+					<select id="replaced_material_id" name="replaced_material_id" class="form-select">
+						<option value="">-- Không thay linh kiện --</option>
+						{% for part in maintenance_parts_list %}
+							<option value="{{ part.material_id }}">
+								{{ part.material_name }} (Tồn kho: {{ part.stock_quantity }})
+							</option>
+						{% endfor %}
+					</select>
+				</div>
+				<div class="mb-3">
+					<label for="replaced_quantity" class="form-label">Số lượng thay:</label>
+					<input type="number" id="replaced_quantity" name="replaced_quantity" class="form-control" value="0">
+				</div>
+				<div class="row">
+					<div class="col-md-6 mb-3">
+						<label for="warranty_end_date" class="form-label">Bảo hành đến ngày:</label>
+						<input type="date" id="warranty_end_date" name="warranty_end_date" class="form-control">
+					</div>
+					<div class="col-md-6 mb-3">
+						<label for="warranty_end_counter" class="form-label">HOẶC đến số Counter:</label>
+						<input type="number" id="warranty_end_counter" name="warranty_end_counter" class="form-control" placeholder="VD: 120000">
+					</div>
+				</div>
+				<small class="text-muted d-block mb-3">Nhập thông tin bảo hành nếu có (Ngày hoặc Số bản in).</small>
+                <button type="submit" 
+                        style="padding: 10px; background: #007bff; color: white; border: none;"
+                        onclick="return confirm('Bạn có chắc chắn muốn thêm nhật ký bảo trì này?');"
+						class="btn btn-primary">
+                    Lưu Nhật ký
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h2 style="margin-top: 20px;">Lịch sử Bảo trì của Máy này</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Ngày bảo trì</th>
+				<th>Counter lúc thay</th>
+                <th>Mô tả</th>
+                <th>Chi phí (vnđ)</th>
+				<th>Nhà cung cấp (Bảo trì)</th>
+                <th>Kỹ thuật viên</th>
+				<th>Bảo hành (Hạn)</th>
+				<th>TT Thanh toán</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs_list %}
+            <tr>
+                <td>{{ log.maintenance_date }}</td>
+				<td class="fw-bold">{{ log.current_counter_at_log|currency }}</td>
+                <td>
+					{{ log.description }}
+					{% if log.replaced_part_name %}
+						<br><small class="text-muted">Thay: {{ log.replaced_part_name }} (SL: {{ log.replaced_quantity }})</small>
+					{% endif %}
+				</td>
+                <td>{{ log.cost|currency }}</td>
+				<td>{{ log.supplier_name or 'Tự làm' }}</td>
+                <td>{{ log.technician_name }}</td>				
+				<td class="small">
+					{% if log.warranty_end_date %}
+						<div>📅 {{ log.warranty_end_date }}</div>
+					{% endif %}
+					{% if log.warranty_end_counter %}
+						<div>🔢 {{ log.warranty_end_counter|currency }}</div>
+					{% endif %}
+					{% if not log.warranty_end_date and not log.warranty_end_counter %}
+						-
+					{% endif %}
+				</td>
+				<td style="color: {% if log.payment_status == 'unpaid' and log.cost > 0 %}red{% else %}green{% endif %};">
+					{{ log.payment_status }}
+				</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+	
+	<div class="modal fade" id="quickAddSupplierModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Thêm Nhà cung cấp Mới</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form id="quickAddSupplierForm">
+						<div class="mb-3">
+							<label class="form-label">Tên Nhà cung cấp:</label>
+							<input type="text" id="quick_supplier_name" class="form-control" required>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Số điện thoại:</label>
+							<input type="text" id="quick_supplier_phone" class="form-control">
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Email:</label>
+							<input type="email" id="quick_supplier_email" class="form-control">
+						</div>
+						<div id="quickSupplierError" class="text-danger"></div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button type="button" id="saveQuickSupplier" class="btn btn-primary">Lưu NCC</button>
+				</div>
+			</div>
+		</div>
+	</div>
+	
+	<div class="modal fade" id="editInfoModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Sửa Thông tin Thiết bị</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<form action="{{ url_for('edit_equipment_info') }}" method="POST">
+						<input type="hidden" name="equipment_id" value="{{ equipment_info.equipment_id }}">
+						
+						<div class="mb-3">
+							<label class="form-label">Tên Thiết bị:</label>
+							<input type="text" name="equipment_name" class="form-control" value="{{ equipment_info.equipment_name }}" required>
+						</div>
+						
+						<div class="row mb-3">
+							<div class="col-6">
+								<label class="form-label">Địa chỉ IP:</label>
+								<input type="text" name="ip_address" class="form-control" value="{{ equipment_info.ip_address or '' }}">
+							</div>
+							<div class="col-6">
+								<label class="form-label">Số Serial:</label>
+								<input type="text" name="serial_number" class="form-control" value="{{ equipment_info.serial_number or '' }}">
+							</div>
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Model:</label>
+							<input type="text" name="model_number" class="form-control" value="{{ equipment_info.model_number }}">
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Nhà cung cấp:</label>
+							<select name="supplier_id" class="form-select">
+								<option value="">-- Không xác định --</option>
+								{% for supplier in suppliers_list %}
+									<option value="{{ supplier.supplier_id }}" {% if supplier.supplier_id == equipment_info.supplier_id %}selected{% endif %}>
+										{{ supplier.supplier_name }}
+									</option>
+								{% endfor %}
+							</select>
+						</div>
+
+						<div class="row mb-3">
+							<div class="col-6">
+								<label class="form-label">Ngày mua:</label>
+								<input type="date" name="purchase_date" class="form-control" value="{{ equipment_info.purchase_date }}">
+							</div>
+							<div class="col-6">
+								<label class="form-label">Hạn bảo hành (Ngày):</label>
+								<input type="date" name="warranty_end_date" class="form-control" value="{{ equipment_info.warranty_end_date }}">
+							</div>
+						</div>
+
+						<div class="text-end">
+							<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+							<button type="submit" class="btn btn-primary">Lưu Thay đổi</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		document.addEventListener('DOMContentLoaded', function() {
+			const saveBtn = document.getElementById('saveQuickSupplier');
+			
+			if(saveBtn){
+				saveBtn.addEventListener('click', function() {
+					const name = document.getElementById('quick_supplier_name').value;
+					const phone = document.getElementById('quick_supplier_phone').value;
+					const email = document.getElementById('quick_supplier_email').value;
+					
+					if(!name) {
+						document.getElementById('quickSupplierError').textContent = "Vui lòng nhập tên NCC";
+						return;
+					}
+
+					const formData = new FormData();
+					formData.append('supplier_name', name);
+					formData.append('phone', phone);
+					formData.append('email', email);
+
+					fetch("{{ url_for('ajax_add_supplier') }}", {
+						method: 'POST',
+						body: formData
+					})
+					.then(response => response.json())
+					.then(data => {
+						if(data.success) {
+							// Thêm vào dropdown
+							const select = document.getElementById('supplier_id');
+							const option = document.createElement('option');
+							option.value = data.new_id;
+							option.text = data.new_name;
+							option.selected = true;
+							select.appendChild(option);
+							
+							// Đóng modal
+							bootstrap.Modal.getInstance(document.getElementById('quickAddSupplierModal')).hide();
+							document.getElementById('quickAddSupplierForm').reset();
+						} else {
+							alert('Lỗi: ' + data.error);
+						}
+					});
+				});
+			}
+		});
+	</script>
+
+{% endblock %}

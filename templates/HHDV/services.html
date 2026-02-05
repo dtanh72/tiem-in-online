@@ -1,0 +1,101 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ DỊCH VỤ{% endblock %}
+
+{% block content %}
+    <h1>Trang Quản lý Dịch vụ</h1>
+
+    <h2>Thêm Dịch vụ Mới</h2>
+    <form action="/add_service" method="POST" class="card card-body bg-light mb-4 row">
+        <div class="mb-3">
+            <label for="service_name" class="form-label">Tên Dịch vụ:</label>
+            <input type="text" id="service_name" name="service_name" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label for="base_price" class="form-label">Đơn giá (vnđ):</label>
+            <input type="number" id="base_price" name="base_price" value="0" class="form-control">
+        </div>
+        <div class="mb-3">
+			<label class="form-label">Đơn Vị Tính Tầng 1 (Cơ sở):</label>
+			<input type="text" name="unit" class="form-control" required placeholder="VD: Tờ">
+		</div>
+		<div class="mb-3">
+			<label class="form-label">Đơn Vị Tính Tầng 2 (Nếu có):</label>
+			<input type="text" name="unit_level2" class="form-control" placeholder="VD: Cuốn/Xấp">
+		</div>
+		<div class="mb-3">
+			<label class="form-label">Đơn Vị Tính Tầng 3 (Nếu có):</label>
+			<input type="text" name="unit_level3" class="form-control" placeholder="VD: Bộ">
+		</div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Mô tả:</label>
+            <textarea id="description" name="description" rows="2" class="form-control"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Lưu Dịch vụ</button>
+    </form>
+
+    <h2>Danh sách Dịch vụ Hiện có</h2>
+    <table class="table table-striped table-hover table-bordered">
+        <thead class="table-dark">
+            <tr>
+                <th style="width: 5%;">ID</th>
+                <th style="width: 25%;">Tên Dịch vụ</th>
+                <th style="width: 15%;">Đơn giá</th>
+                <th style="width: 10%;">ĐV Tầng 1 (Gốc)</th>
+                <th style="width: 10%;">ĐV Tầng 2 (x)</th>
+                <th style="width: 10%;">ĐV Tầng 3 (x)</th>
+                <th style="width: 15%;">Mô tả</th>
+                <th style="width: 10%;">Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for service in services_list %}
+            <tr class="{% if not service.is_active %}table-secondary text-muted{% endif %}">
+                <td>{{ service.service_id }}</td>
+                <td class="fw-bold">
+                    {{ service.service_name }}
+                    {% if not service.is_active %}(Đã khóa){% endif %}
+                </td>
+                <td class="text-end">{{ service.base_price|currency }}</td>
+                
+                <td class="text-center bg-light">{{ service.unit }}</td>
+                <td class="text-center">
+                    {% if service.unit_level2 %}
+                        {{ service.unit_level2 }}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if service.unit_level3 %}
+                        {{ service.unit_level3 }}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                
+                <td>{{ service.description }}</td>
+                <td>
+                    {% if service.is_active %}
+                        <a href="{{ url_for('edit_service_page', service_id=service.service_id) }}" class="btn btn-sm btn-warning">Sửa</a>
+                    {% endif %}
+
+                    <form action="{{ url_for('toggle_service', id=service.service_id) }}" method="POST" style="display:inline;">
+                        {% if service.is_active %}
+                            <button type="submit" class="btn btn-sm btn-danger" 
+                                    onclick="return confirm('Khóa dịch vụ này? Nó sẽ ẩn khỏi trang tạo đơn.');">
+                                🔒 Khóa
+                            </button>
+                        {% else %}
+                            <button type="submit" class="btn btn-sm btn-success">
+                                🔓 Mở lại
+                            </button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends 'UI/base.html' %}
+{% block title %}Quản lý Người dùng{% endblock %}
+
+{% block content %}
+    <h1>Quản lý Người dùng & Phân quyền</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card card-body bg-light">
+                <h4>Tạo Nhân viên Mới</h4>
+                <form action="/add_user" method="POST">
+                    <div class="mb-3">
+                        <label>Tên đăng nhập:</label>
+                        <input type="text" name="username" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Mật khẩu:</label>
+                        <input type="password" name="password" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Họ và Tên:</label>
+                        <input type="text" name="full_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Bộ phận (Quyền):</label>
+                        <select name="role_id" class="form-select">
+                            {% for role in roles %}
+                                <option value="{{ role.role_id }}">{{ role.role_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Tạo Tài khoản</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <table class="table table-bordered">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th>Tên đăng nhập</th>
+                        <th>Họ tên</th>
+                        <th>Bộ phận</th>
+                        <th>Trạng thái</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.user_id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.full_name }}</td>
+                        <td><span class="badge bg-info text-dark">{{ user.role_name }}</span></td>
+                        <td>
+                            {% if user.is_active %}
+                                <span class="text-success">Hoạt động</span>
+                            {% else %}
+                                <span class="text-danger">Đã khóa</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

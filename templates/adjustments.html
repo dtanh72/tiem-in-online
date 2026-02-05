@@ -1,0 +1,58 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}ĐIỀU CHỈNH KHO{% endblock %}
+
+{% block content %}
+
+    <h1>Trang Điều chỉnh Kho</h1>
+
+    <h2>Thêm Phiếu Điều chỉnh (Hao phí, Kẹt giấy, Kiểm kho)</h2>
+    <form action="/add_adjustment" method="POST" class="card card-body bg-light mb-4">
+        <div class="mb-3">
+            <label for="material_id" class="form-label">Chọn Vật tư:</label><br>
+            <select id="material_id" name="material_id" class="form-control" required>
+                <option value="">-- Chọn vật tư --</option>
+                {% for material in materials_list %}
+                    <option value="{{ material.material_id }}">{{ material.material_name }} (Tồn kho: {{ material.stock_quantity }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="quantity_adjusted" class="form-label">Số lượng Điều chỉnh:</label><br>
+            <input type="number" id="quantity_adjusted" name="quantity_adjusted" class="form-control" required placeholder="Gõ -10 nếu hỏng 10 tờ">
+        </div>
+        <div class="mb-3">
+            <label for="reason" class="form-label">Lý do điều chỉnh:</label><br>
+            <textarea id="reason" name="reason" rows="3" class="form-control" required placeholder="Ví dụ: Kẹt máy in Ricoh"></textarea>
+        </div>
+        <div class="mb-3">
+            <label for="adjustment_date" class="form-label">Ngày điều chỉnh:</label><br>
+            <input type="date" id="adjustment_date" name="adjustment_date" class="form-control" required>
+        </div>        
+		
+		<button type="submit" class="btn btn-primary">Lưu Điều chỉnh</button>
+    </form>
+
+    <h2>Lịch sử Điều chỉnh</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Ngày</th>
+                <th>Tên Vật tư</th>
+                <th>Số lượng</th>
+                <th>Lý do</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in adjustments_list %}
+            <tr>
+                <td>{{ item.adjustment_date }}</td>
+                <td>{{ item.material_name }}</td>
+                <td>{{ item.quantity_adjusted }}</td>
+                <td>{{ item.reason }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}

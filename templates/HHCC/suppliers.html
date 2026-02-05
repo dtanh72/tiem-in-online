@@ -1,0 +1,102 @@
+{% extends "UI/base.html" %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0 text-gray-800">🏭 Quản lý Nhà Cung Cấp</h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addSupplierModal">
+            <i class="fas fa-plus"></i> Thêm Nhà Cung Cấp
+        </button>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên Nhà Cung Cấp</th>
+                            <th>Điện thoại</th>
+                            <th>Email</th>
+                            <th>Địa chỉ</th>
+                            <th>Trạng thái</th>
+                            <th>Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sup in suppliers_list %}
+                        <tr>
+                            <td>{{ sup.supplier_id }}</td>
+                            <td class="fw-bold">{{ sup.supplier_name }}</td>
+                            <td>{{ sup.phone or '' }}</td>
+                            <td>{{ sup.email or '' }}</td>
+                            <td>{{ sup.address or '' }}</td>
+                            <td>
+                                {% if sup.is_active %}
+                                    <span class="badge bg-success">Hoạt động</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Đã khóa</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form action="{{ url_for('toggle_supplier', id=sup.supplier_id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái nhà cung cấp này?');">
+                                    {% if sup.is_active %}
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Khóa">
+                                            <i class="fas fa-lock"></i>
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-sm btn-outline-success" title="Mở khóa">
+                                            <i class="fas fa-unlock"></i>
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if not suppliers_list %}
+                <div class="text-center p-4 text-muted">Chưa có nhà cung cấp nào.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addSupplierModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm Nhà Cung Cấp Mới</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="{{ url_for('add_supplier') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tên Nhà Cung Cấp <span class="text-danger">*</span></label>
+                        <input type="text" name="supplier_name" class="form-control" required placeholder="VD: Công ty Giấy Hải Tiến">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Số điện thoại</label>
+                        <input type="text" name="phone" class="form-control" placeholder="090...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" placeholder="abc@company.com">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Địa chỉ</label>
+                        <textarea name="address" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-primary">Lưu lại</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ ĐƠN HÀNG{% endblock %}
+
+{% block content %}
+
+    <h1>Chi tiết Đơn Hàng #{{ order_info.order_id }}</h1>
+	
+	{% if order_info.status == 'cancelled' %}
+		<div class="alert alert-danger fw-bold text-center">
+			⚠️ ĐƠN HÀNG NÀY ĐÃ BỊ HỦY - CHẾ ĐỘ CHỈ XEM (READ-ONLY)
+		</div>
+	{% endif %}
+	
+    <a href="{{ url_for('orders_history_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Lịch sử</a>
+
+    <div class="mb-3 order-info">
+        <div class="mb-3">
+			<table class="table table-striped table-hover">
+				<thead>
+					<tr>
+						<th><h2>Thông tin chung</h2></th>
+						<td></td>
+					</tr>
+					<tr>
+						<th><strong>Khách hàng:</strong></th>
+						<td>{{ order_info.customer_name }}</td>
+					</tr>
+					<tr>
+						<th><strong>Ngày đặt:</strong></th>
+						<td>{{ order_info.order_date }}</td>
+					</tr>
+					<tr>
+						<th><strong>Tổng trước thuế:</strong></th>
+						<td>{{ order_info.subtotal|currency }} vnđ</td>
+					</tr>
+					<tr>
+						<th><strong>Thuế ({{ order_info.tax_rate }}%):</strong></th>
+						<td>{{ order_info.tax_amount|currency }} vnđ</td>
+					</tr>
+					<tr>
+						<th><strong>Tổng tiền hóa đơn:</strong></th>
+						<td>{{ order_info.total_amount|currency }} vnđ</td>
+					</tr>
+					<tr>
+						<th><strong>Đã thanh toán:</strong></th>
+						<td>{{ order_info.amount_paid|currency }} vnđ</td>
+					</tr>
+					<tr>
+							{% set amount_due = order_info.total_amount - order_info.amount_paid %}
+							<p style="font-size: 1.2em; font-weight: bold; {% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
+								<th>Còn Nợ:</th>														
+								<td style="{% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
+									{% if amount_due > 0 %}
+										{{ amount_due|currency }} vnđ
+									{% else %}
+										Đã thanh toán đủ
+									{% endif %}							
+								</td>
+							</p>
+					</tr>
+					<tr>
+						<th><strong>Trạng thái Giao hàng:</strong></th>
+						<td>{{ order_info.delivery_status }}</td>
+					</tr>
+				</thead>
+			</table>           
+            
+        </div>
+
+        {% if amount_due > 0 and order_info.status != 'cancelled' %}
+        <div class="mb-3">
+            <h2>Ghi nhận Thanh toán</h2>
+            <form action="{{ url_for('log_payment', order_id=order_info.order_id) }}" method="POST" class="card card-body bg-light mb-4">
+                <div class="mb-3">
+                    <label for="amount_received" class="form-label">Số tiền nhận (vnđ):</label><br>
+                    <input type="number" id="amount_received" name="amount_received" 
+                           value="{{ amount_due }}" 
+                           min="0"
+                           max="{{ amount_due }}"
+                           class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label for="payment_method" class="form-label">Hình thức:</label><br>
+                    <select id="payment_method" name="payment_method" class="form-control">
+                        <option value="cash">Tiền mặt</option>
+                        <option value="transfer">Chuyển khoản</option>
+                        <option value="other">Khác</option>
+                    </select>
+                </div>
+                <button type="submit" 
+						style="margin-top: 15px; padding: 10px; background: #5cb85c; color: white; border: none;"
+						onclick="return confirm('Bạn có chắc chắn muốn ghi nhận thanh toán này?');"
+						class="btn btn-primary">
+						Xác nhận Thanh toán
+				</button>
+            </form>
+        </div>
+        {% endif %}
+        {% if order_info.delivery_status != 'delivered' and order_info.status != 'cancelled' %}
+        <div class="mb-3">
+            <h2>Trạng thái Giao hàng</h2>
+            <form action="{{ url_for('update_delivery_status', order_id=order_info.order_id) }}" method="POST" class="card card-body bg-light mb-4">
+                <p>Trạng thái hiện tại: <strong>{{ order_info.delivery_status }}</strong></p>
+                <select name="delivery_status" class="form-control">
+                    <option value="pending" {% if order_info.delivery_status == 'pending' %}selected{% endif %}>Chưa giao</option>
+                    <option value="delivered" {% if order_info.delivery_status == 'delivered' %}selected{% endif %}>Đã giao</g option>
+                </select>
+                <button type="submit" 
+				        style="margin-top: 15px; padding: 10px; background: #007bff; color: white; border: none;"
+						onclick="return confirm('Bạn có chắc chắn muốn cập nhật trạng thái giao hàng?');"
+						class="btn btn-primary">
+						Cập nhật Giao hàng
+				</button>
+            </form>
+        </div>
+        {% endif %}
+        </div>
+
+    <h2>Các dịch vụ đã đặt</h2>
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Tên Dịch vụ</th>
+                <th>Số lượng</th>
+                <th>Đơn vị</th>
+                <th>Đơn giá</th>
+                <th>Thành tiền</th>
+				<th>Giá vốn (Ước tính)</th> 
+				<th>Lợi nhuận (Ước tính)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in order_items %}
+            <tr>
+                <td>{{ item.service_name }}</td>
+                <td>{{ item.quantity }}</td>
+                <td>{{ item.unit }}</td>
+                <td>{{ item.unit_price|currency }}</td>
+                <td>{{ item.line_total|currency }}</td>
+				<td>{{ item.cost_of_goods|currency }}</td> 
+				<td style="font-weight: bold; color: green;">{{ item.profit|currency }}</td>
+            </tr>
+            {% endfor %}
+            <tr >
+                <td colspan="4" style="text-align: right;">TỔNG CỘNG</td>
+                <td>{{ order_info.total_amount|currency }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+{% endblock %}
