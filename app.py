@@ -82,14 +82,14 @@ LOGIN_HTML = "HHBM/login.html"
 MANAGE_USERS_HTML = "HHBM/manage_users.html"
 SYSTEM_LOG_HTML = "HHBM/system_logs.html"
 
-def get_db_connection():
-    try:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-        return conn
-    except Exception as e:
-        print(f"Lỗi kết nối: {e}")
-        return None
-
+#def get_db_connection():
+#    try:
+#        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+#        return conn
+#    except Exception as e:
+#        print(f"Lỗi kết nối: {e}")
+#        return None
+#
 # --- CẤU HÌNH LOGIN ---
 login_manager = LoginManager()
 login_manager.init_app(app)
