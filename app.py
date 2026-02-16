@@ -96,12 +96,11 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 class User(UserMixin):
-    def __init__(self, id, username, full_name, role_id, is_active):
+    def __init__(self, id, username, full_name, role_id):
         self.id = id
         self.username = username
         self.full_name = full_name
         self.role_id = role_id
-        self.is_active = is_active
         
     def can(self, perm):
         return True # Tạm thời cho full quyền để test
@@ -114,7 +113,7 @@ def load_user(user_id):
     u = cur.fetchone()
     conn.close()
     if u:
-        return User(u['user_id'], u['username'], u['full_name'], u['role_id'], u['is_active'])
+        return User(u['user_id'], u['username'], u['full_name'], u['role_id'])
     return None
 
 # --- ROUTE CỨU HỘ: TẠO ADMIN ---
@@ -127,7 +126,7 @@ def setup_admin():
         cur.execute("INSERT INTO Roles (role_id, role_name, permissions) VALUES (1, 'Admin', 'all') ON CONFLICT DO NOTHING")
         # 2. Tạo User
         hashed_pw = generate_password_hash(ADMIN_PAS_DEF)
-        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id, is_active) VALUES (%s, %s, 'Super Admin', 1, true)", ADMIN_DEF, (hashed_pw,))
+        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES (%s, %s, 'Super Admin', 1)", ADMIN_DEF, (hashed_pw,))
         conn.commit()
         return "Tạo Admin thành công!"
     except Exception as e:
@@ -149,7 +148,7 @@ def login():
         conn.close()
         
         if user and check_password_hash(user['password_hash'], password):
-            user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'], user['is_active'])
+            user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'])
             login_user(user_obj)
             return redirect(url_for('dashboard_page'))
         else:
