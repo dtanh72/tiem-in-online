@@ -10,7 +10,7 @@ from dotenv import load_dotenv # Nhớ pip install python-dotenv
 load_dotenv() # Nó sẽ tự đọc file .env
 
 app = Flask(__name__)
-app.secret_key = 'khoa_bi_mat_sieu_cap'
+app.secret_key = os.environ.get('SECRET_KEY', 'mac_dinh_neu_khong_co_key') # Key bảo mật
 
 from functools import wraps
 
@@ -24,8 +24,10 @@ def currency_filter(value):
 
 # --- CẤU HÌNH DATABASE ---
 
-# Cách 1: Lấy từ biến môi trường (Khi chạy trên Render)
+# Cách 1: Lấy từ biến môi trường (Khi chạy trên vercel)
 DATABASE_URL = os.environ.get('DATABASE_URL')
+ADMIN_DEF = os.environ.get('ADMIN_DEF')
+ADMIN_PAS_DEF = os.environ.get('ADMIN_PAS_DEF')
 
 # Cách 2: Nếu đang chạy Local (trên máy tính) mà không tìm thấy biến môi trường
 # Thì dùng chuỗi kết nối trực tiếp (nhưng KHÔNG ĐƯỢC để lộ khi push lên Git)
@@ -123,10 +125,10 @@ def setup_admin():
         # 1. Tạo Role
         cur.execute("INSERT INTO Roles (role_id, role_name, permissions) VALUES (1, 'Admin', 'all') ON CONFLICT DO NOTHING")
         # 2. Tạo User
-        hashed_pw = generate_password_hash('123456')
-        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES ('admin', %s, 'Super Admin', 1)", (hashed_pw,))
+        hashed_pw = generate_password_hash(ADMIN_PAS_DEF)
+        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES (ADMIN_PAS_DEF, %s, 'Super Admin', 1)", (hashed_pw,))
         conn.commit()
-        return "Tạo Admin thành công! User: admin / Pass: 123456"
+        return "Tạo Admin thành công!"
     except Exception as e:
         conn.rollback()
         return f"Lỗi: {e}"
