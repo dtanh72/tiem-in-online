@@ -126,7 +126,7 @@ def setup_admin():
         cur.execute("INSERT INTO Roles (role_id, role_name, permissions) VALUES (1, 'Admin', 'all') ON CONFLICT DO NOTHING")
         # 2. Tạo User
         hashed_pw = generate_password_hash(ADMIN_PAS_DEF)
-        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES (ADMIN_PAS_DEF, %s, 'Super Admin', 1)", (hashed_pw,))
+        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES (ADMIN_DEF, %s, 'Super Admin', 1)", (hashed_pw,))
         conn.commit()
         return "Tạo Admin thành công!"
     except Exception as e:
