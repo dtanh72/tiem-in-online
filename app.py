@@ -113,7 +113,7 @@ def load_user(user_id):
     u = cur.fetchone()
     conn.close()
     if u:
-        return User(u['user_id'], u['username'], u['full_name'], u['role_id'])
+        return User(u['user_id'], u['username'], u['full_name'], u['role_id'], u['is_active'])
     return None
 
 # --- ROUTE CỨU HỘ: TẠO ADMIN ---
@@ -126,7 +126,7 @@ def setup_admin():
         cur.execute("INSERT INTO Roles (role_id, role_name, permissions) VALUES (1, 'Admin', 'all') ON CONFLICT DO NOTHING")
         # 2. Tạo User
         hashed_pw = generate_password_hash(ADMIN_PAS_DEF)
-        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES (ADMIN_DEF, %s, 'Super Admin', 1)", (hashed_pw,))
+        cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id, is_active) VALUES (%s, %s, 'Super Admin', 1, true)", ADMIN_DEF, (hashed_pw,))
         conn.commit()
         return "Tạo Admin thành công!"
     except Exception as e:
