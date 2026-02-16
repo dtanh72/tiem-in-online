@@ -96,11 +96,12 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 class User(UserMixin):
-    def __init__(self, id, username, full_name, role_id):
+    def __init__(self, id, username, full_name, role_id, is_active):
         self.id = id
         self.username = username
         self.full_name = full_name
         self.role_id = role_id
+        self.is_active = is_active
         
     def can(self, perm):
         return True # Tạm thời cho full quyền để test
@@ -148,7 +149,7 @@ def login():
         conn.close()
         
         if user and check_password_hash(user['password_hash'], password):
-            user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'])
+            user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'], user['is_active'])
             login_user(user_obj)
             return redirect(url_for('dashboard_page'))
         else:
