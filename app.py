@@ -418,40 +418,56 @@ def customers_page():
     conn.close()
     return render_template(CUSTOMERS_HTML, customers_list=customers_list)
 
-# 2. (C)reate
+# 2. (C)reate - Thêm Khách Hàng Mới
 @app.route('/add_customer', methods=['POST'])
 @requires_permission('sale')
 def add_customer():
-    name = request.form['customer_name']
-    phone = request.form['phone']
-    email = request.form['email']
-    address = request.form['address']
-    company = request.form['company_name']
-    tax = request.form['tax_id']
-    billing = request.form['billing_address']
+    def clean(val):
+        return val if val and val.strip() != '' else None
+
+    name = request.form.get('customer_name')
+    phone = clean(request.form.get('phone'))
+    email = clean(request.form.get('email'))
+    address = clean(request.form.get('address'))
+    company = clean(request.form.get('company_name'))
+    tax = clean(request.form.get('tax_id'))
+    billing = clean(request.form.get('billing_address'))
+
+    if not name:
+        flash("Tên khách hàng là thông tin bắt buộc!", "danger")
+        return redirect(url_for('customers_page'))
 
     conn = get_db_connection()
-    cur = conn.cursor()
+    # Dùng RealDictCursor để lấy đúng tên cột (nếu hàm get_db_connection không mặc định)
+    cur = conn.cursor(cursor_factory=RealDictCursor) 
+    
     try:
-        # POSTGRES: RETURNING customer_id
         sql = """
-            INSERT INTO Customers (customer_name, phone, email, address, company_name, tax_id, billing_address) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO Customers 
+            (customer_name, phone, email, address, company_name, tax_id, billing_address, is_active) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
             RETURNING customer_id
         """
-        cur.execute(sql, (name, phone, email, address, company, tax, billing))
+        val = (name, phone, email, address, company, tax, billing)
+        cur.execute(sql, val)
         
-        # Lấy ID vừa tạo (thay cho lastrowid)
-        new_id = cur.fetchone()[0]
-        
-        # Ghi Log
-        log_desc = f"Thêm Khách Hàng ID {new_id}"
-        # log_system_action(cur, 'ADD', 'Customers', log_desc) # Tạm comment để chạy
+        # 4. SỬA LỖI "0" Ở ĐÂY: Dùng tên cột thay vì số 0
+        new_row = cur.fetchone()
+        if new_row:
+            # Lấy giá trị qua key 'customer_id' thay vì [0]
+            new_id = new_row['customer_id'] 
+        else:
+            raise Exception("Database không trả về ID mới!")
         
         conn.commit()
+        flash("Thêm khách hàng thành công!", "success")
+        
     except Exception as e:
         conn.rollback()
-        print(f"Lỗi thêm khách: {e}")
+        import traceback
+        traceback.print_exc() # In toàn bộ lỗi chi tiết ra Terminal để dễ nhìn hơn
+        flash(f"Lỗi khi thêm khách hàng: {str(e)}", "danger") 
+        
     finally:
         cur.close()
         conn.close()
@@ -1366,7 +1382,7 @@ def edit_material_page(material_id):
     conn.close()
     
     if material_data:
-        return render_template('edit_material.html', material=material_data)
+        return render_template(EDIT_MATERIAL_HTML, material=material_data)
     else:
         return "Không tìm thấy vật tư!", 404
 
@@ -2153,7 +2169,7 @@ def toggle_coupon_status(coupon_id):
 # AJAX (GIAO TIẾP NGẦM) - POSTGRESQL
 # ======================================================
 
-# 1. AJAX - Thêm nhanh Khách hàng (Dùng trong trang Tạo đơn hàng)
+# 1. AJAX - Thêm nhanh Khách hàng (SỬA LỖI 0 DỨT ĐIỂM)
 @app.route('/ajax/add_customer', methods=['POST'])
 @requires_permission('accounting', 'sale')
 def ajax_add_customer():
@@ -2161,22 +2177,32 @@ def ajax_add_customer():
     cur = conn.cursor()
     
     try:
-        name = request.form['customer_name']
-        phone = request.form['phone']
+        # Lấy dữ liệu an toàn
+        name = request.form.get('customer_name')
+        phone = request.form.get('phone', '')
         
-        # POSTGRES: Dùng RETURNING để lấy ID
-        sql = "INSERT INTO Customers (customer_name, phone) VALUES (%s, %s) RETURNING customer_id"
+        if not name:
+            return jsonify({'success': False, 'error': 'Tên khách hàng là bắt buộc!'})
+        
+        # INSERT và RETURNING
+        sql = "INSERT INTO Customers (customer_name, phone, is_active) VALUES (%s, %s, TRUE) RETURNING customer_id"
         cur.execute(sql, (name, phone))
         
-        # Lấy ID vừa tạo (fetchone trả về tuple, lấy phần tử đầu tiên)
-        new_id = cur.fetchone()[0]
+        # SỬA LỖI 0 Ở ĐÂY: Viết code tương thích với mọi loại Cursor
+        new_row = cur.fetchone()
         
-        # Ghi log (Tạm bỏ qua hoặc mở comment nếu đã có hàm log)
-        # log_system_action(cur, 'QUICK ADD', 'Customers', f"Thêm nhanh KH ID {new_id}")
+        if new_row:
+            try:
+                # Nếu database trả về Dictionary -> Lấy bằng tên cột
+                new_id = new_row['customer_id']
+            except (TypeError, KeyError, IndexError):
+                # Nếu database trả về Tuple mặc định -> Lấy bằng vị trí 0
+                new_id = new_row[0]
+        else:
+            raise Exception("Không tạo được ID")
         
         conn.commit()
         
-        # Trả về JSON y hệt như code cũ
         return jsonify({
             'success': True,
             'new_id': new_id,
@@ -2185,7 +2211,8 @@ def ajax_add_customer():
         
     except Exception as e:
         conn.rollback()
-        print(f"Lỗi AJAX Customer: {e}")
+        # In lỗi chi tiết ra console
+        print(f"🔴 Lỗi AJAX Customer: {type(e).__name__}: {e}")
         return jsonify({'success': False, 'error': str(e)})
     finally:
         cur.close()
@@ -2292,15 +2319,32 @@ def ajax_add_supplier():
     cur = conn.cursor()
     
     try:
-        name = request.form['supplier_name']
-        phone = request.form['phone']
-        email = request.form['email']
+        # Lấy dữ liệu an toàn bằng .get() để tránh lỗi KeyError nếu bỏ trống form
+        name = request.form.get('supplier_name')
+        phone = request.form.get('phone', '')
+        email = request.form.get('email', '')
         
-        # POSTGRES: RETURNING supplier_id
-        sql = "INSERT INTO Suppliers (supplier_name, phone, email) VALUES (%s, %s, %s) RETURNING supplier_id"
+        if not name:
+            return jsonify({'success': False, 'error': 'Tên nhà cung cấp là bắt buộc!'})
+        
+        # POSTGRES: Thêm is_active=TRUE cho chuẩn với Database mới
+        sql = "INSERT INTO Suppliers (supplier_name, phone, email, is_active) VALUES (%s, %s, %s, TRUE) RETURNING supplier_id"
         cur.execute(sql, (name, phone, email))
-        new_id = cur.fetchone()[0]
         
+        # SỬA LỖI 0 DỨT ĐIỂM Ở ĐÂY
+        new_row = cur.fetchone()
+        
+        if new_row:
+            try:
+                # Cố gắng lấy theo tên cột (nếu dùng RealDictCursor)
+                new_id = new_row['supplier_id']
+            except (TypeError, KeyError, IndexError):
+                # Nếu không được thì lấy theo vị trí số 0 (nếu dùng Tuple bình thường)
+                new_id = new_row[0]
+        else:
+            raise Exception("Không lấy được ID mới từ Database")
+        
+        # Ghi log (Tạm bỏ qua hoặc mở comment nếu đã có hàm log)
         # log_system_action(cur, 'QUICK ADD', 'Suppliers', f"Thêm nhanh NCC ID {new_id}")
         
         conn.commit()
@@ -2310,9 +2354,11 @@ def ajax_add_supplier():
             'new_id': new_id,
             'new_name': name
         })
+        
     except Exception as e:
         conn.rollback()
-        print(f"Lỗi AJAX Supplier: {e}")
+        # In rõ tên lỗi ra màn hình đen để dễ bắt bệnh hơn
+        print(f"🔴 Lỗi AJAX Supplier: {type(e).__name__}: {e}")
         return jsonify({'success': False, 'error': str(e)})
     finally:
         cur.close()
