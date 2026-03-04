@@ -1,0 +1,304 @@
+{% extends 'UI/base.html' %} {% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-primary"><i class="fas fa-industry"></i> Quản Lý Bảng Giá Gia Công</h2>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalAddPartner">
+            <i class="fas fa-plus"></i> Thêm Xưởng Mới
+        </button>
+    </div>
+
+    <div class="row">
+        {% for partner in partners %}
+        <div class="col-12 mb-4">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">{{ partner.partner_name }}</h5>
+                    <small><i class="fas fa-phone"></i> {{ partner.phone }} | <i class="fas fa-map-marker-alt"></i> {{ partner.address }}</small>
+                </div>
+                <div class="card-body bg-light">
+                    
+                    <div class="mb-3 text-end">
+                        <button class="btn btn-sm btn-primary" onclick="openCategoryModal({{ partner.partner_id }}, '{{ partner.partner_name }}')">
+                            <i class="fas fa-folder-plus"></i> Tạo Danh Mục Dịch Vụ Mới
+                        </button>
+                    </div>
+
+                    {% if partner.partner_id in grouped_data %}
+                        <div class="row">
+                            {% for cat_group in grouped_data[partner.partner_id] | groupby('category_name') %}
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-secondary h-100">
+                                    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center py-2">
+										<strong>{{ cat_group.grouper }}</strong>
+										<div>
+											<span class="badge bg-light text-dark me-2">Đơn vị: {{ cat_group.list[0].unit }}</span>
+											<button class="btn btn-sm btn-outline-light text-dark py-0 px-1" title="Sửa danh mục" 
+													onclick="openEditCategoryModal('{{ cat_group.list[0].category_id }}', '{{ cat_group.grouper }}', '{{ cat_group.list[0].type }}', '{{ cat_group.list[0].unit }}')">
+												<i class="fas fa-edit"></i>
+											</button>
+										</div>
+									</div>
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Tên / Phân loại</th>
+                                                <th>Mốc SL</th>
+                                                <th class="text-end">Đơn Giá</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in cat_group.list %}
+                                                {% if item.price_id %}
+                                                <tr>
+													<td>{{ item.item_name }}</td>
+													<td>
+														{% if item.max_qty >= 999999 %} Từ {{ item.min_qty }}
+														{% else %} {{ item.min_qty }} - {{ item.max_qty }} {% endif %}
+													</td>
+													<td class="text-end text-danger fw-bold">{{ "{:,.0f}".format(item.unit_price) }} đ</td>
+													
+													<td class="text-end" style="width: 40px;">
+														<button class="btn btn-sm btn-outline-secondary py-0 px-1" title="Sửa mốc giá"
+																onclick="openEditPriceModal('{{ item.price_id }}', '{{ item.item_name }}', '{{ item.min_qty }}', '{{ item.max_qty }}', '{{ item.unit_price }}')">
+															<i class="fas fa-edit"></i>
+														</button>
+													</td>
+												</tr>
+                                                {% endif %}
+                                            {% endfor %}
+                                            
+                                            {% if not cat_group.list[0].price_id %}
+                                                <tr>
+                                                    <td colspan="3" class="text-center text-muted fst-italic py-3">
+                                                        Chưa có mốc giá nào. Hãy bấm nút "Thêm mốc giá" ở dưới.
+                                                    </td>
+                                                </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                    <div class="card-footer py-1 text-center bg-white border-top-0">
+                                        <button class="btn btn-sm btn-outline-success" onclick="openPriceModal({{ cat_group.list[0].category_id }}, '{{ cat_group.grouper }}')">
+                                            <i class="fas fa-plus-circle"></i> Thêm mốc giá
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-center text-muted fst-italic">Xưởng này chưa có bảng giá dịch vụ nào.</p>
+                    {% endif %}
+
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="modal fade" id="modalAddPartner" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{{ url_for('add_outsource_partner') }}" method="POST" class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Thêm Xưởng Gia Công</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3"><label>Tên Xưởng (VD: In SV Vĩnh Long) *</label><input type="text" name="partner_name" class="form-control" required></div>
+                <div class="mb-3"><label>Số điện thoại</label><input type="text" name="phone" class="form-control"></div>
+                <div class="mb-3"><label>Địa chỉ</label><input type="text" name="address" class="form-control"></div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-success">Lưu Xưởng</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAddCategory" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{{ url_for('add_outsource_category') }}" method="POST" class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Tạo Danh Mục Dịch Vụ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="partner_id" id="cat_partner_id">
+                <p>Đang tạo cho xưởng: <strong id="cat_partner_name" class="text-primary"></strong></p>
+                
+                <div class="mb-3">
+                    <label>Tên nhóm dịch vụ (VD: In nhanh 4 màu, Namecard C300) *</label>
+                    <input type="text" name="category_name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label>Phân loại cốt lõi *</label>
+                    <select name="type" class="form-select" required>
+                        <option value="print">In ấn (Tính theo trang/lượt)</option>
+                        <option value="paper">Vật tư giấy (Tính theo tờ/cuộn)</option>
+                        <option value="post_press">Gia công sau in (Cán, bế, đóng cuốn...)</option>
+                        <option value="package">Trọn gói (VD: Hộp namecard, Cuốn sổ)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label>Đơn vị tính chung (VD: Trang, Tờ, Hộp, Cuốn) *</label>
+                    <input type="text" name="unit" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-primary">Lưu Danh Mục</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAddPrice" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{{ url_for('add_outsource_price') }}" method="POST" class="modal-content border-success">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Thêm Mốc Giá Dịch Vụ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="category_id" id="price_category_id">
+                <p>Danh mục: <strong id="price_category_name" class="text-success"></strong></p>
+                
+                <div class="mb-3">
+                    <label>Tên mục con (VD: Khổ A4, Mức 1-20 hộp) *</label>
+                    <input type="text" name="item_name" class="form-control" required>
+                </div>
+                
+                <div class="row mb-3 bg-light p-2 rounded">
+                    <label class="mb-2 fw-bold text-danger">Mốc Số Lượng (Bỏ trống max nếu không giới hạn):</label>
+                    <div class="col-6">
+                        <label>Từ (Min)</label>
+                        <input type="number" name="min_qty" class="form-control" value="1" min="1" required>
+                    </div>
+                    <div class="col-6">
+                        <label>Đến (Max)</label>
+                        <input type="number" name="max_qty" class="form-control" placeholder="999999">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label>Đơn giá Vốn (VNĐ) *</label>
+                    <input type="number" name="unit_price" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-success">Lưu Mốc Giá</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditCategory" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{{ url_for('edit_outsource_category') }}" method="POST" class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Chỉnh Sửa Danh Mục</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="category_id" id="edit_cat_id">
+                
+                <div class="mb-3">
+                    <label>Tên nhóm dịch vụ *</label>
+                    <input type="text" name="category_name" id="edit_cat_name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label>Phân loại cốt lõi *</label>
+                    <select name="type" id="edit_cat_type" class="form-select" required>
+                        <option value="print">In ấn (Tính theo trang/lượt)</option>
+                        <option value="paper">Vật tư giấy (Tính theo tờ/cuộn)</option>
+                        <option value="post_press">Gia công sau in (Cán, bế...)</option>
+                        <option value="package">Trọn gói (VD: Hộp, Cuốn)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label>Đơn vị tính chung *</label>
+                    <input type="text" name="unit" id="edit_cat_unit" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-warning">Cập Nhật</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalEditPrice" tabindex="-1">
+    <div class="modal-dialog">
+        <form action="{{ url_for('edit_outsource_price') }}" method="POST" class="modal-content border-warning">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Chỉnh Sửa Mốc Giá</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="price_id" id="edit_price_id">
+                
+                <div class="mb-3">
+                    <label>Tên mục con *</label>
+                    <input type="text" name="item_name" id="edit_price_name" class="form-control" required>
+                </div>
+                
+                <div class="row mb-3 bg-light p-2 rounded">
+                    <label class="mb-2 fw-bold text-danger">Mốc Số Lượng:</label>
+                    <div class="col-6">
+                        <label>Từ (Min)</label>
+                        <input type="number" name="min_qty" id="edit_price_min" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label>Đến (Max)</label>
+                        <input type="number" name="max_qty" id="edit_price_max" class="form-control">
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label>Đơn giá Vốn (VNĐ) *</label>
+                    <input type="number" name="unit_price" id="edit_price_val" class="form-control" required>
+                </div>
+            </div>
+            <div class="modal-footer"><button type="submit" class="btn btn-warning">Cập Nhật Giá</button></div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // 1. Mở Modal Tạo Danh Mục
+    function openCategoryModal(partnerId, partnerName) {
+        // Điền dữ liệu vào form
+        document.getElementById('cat_partner_id').value = partnerId;
+        document.getElementById('cat_partner_name').innerText = partnerName;
+        
+        // Gọi Modal bằng lệnh chuẩn của Bootstrap 5
+        var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAddCategory'));
+        myModal.show();
+    }
+
+    // 2. Mở Modal Tạo Mốc Giá
+    function openPriceModal(categoryId, categoryName) {
+        // Điền dữ liệu vào form
+        document.getElementById('price_category_id').value = categoryId;
+        document.getElementById('price_category_name').innerText = categoryName;
+        
+        // Gọi Modal bằng lệnh chuẩn của Bootstrap 5
+        var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAddPrice'));
+        myModal.show();
+    }
+	
+	// Hàm mở Modal Sửa Danh Mục
+    function openEditCategoryModal(id, name, type, unit) {
+        document.getElementById('edit_cat_id').value = id;
+        document.getElementById('edit_cat_name').value = name;
+        document.getElementById('edit_cat_type').value = type;
+        document.getElementById('edit_cat_unit').value = unit;
+        
+        var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditCategory'));
+        myModal.show();
+    }
+
+    // Hàm mở Modal Sửa Giá
+    function openEditPriceModal(id, name, min, max, price) {
+        document.getElementById('edit_price_id').value = id;
+        document.getElementById('edit_price_name').value = name;
+        document.getElementById('edit_price_min').value = min;
+        document.getElementById('edit_price_max').value = max >= 999999 ? '' : max; // Nếu max là 999999 thì để trống form
+        document.getElementById('edit_price_val').value = Math.round(price); // Cắt bỏ số thập phân nếu có
+        
+        var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditPrice'));
+        myModal.show();
+    }
+</script>
+{% endblock %}

@@ -50,16 +50,22 @@
                             Danh mục
                         </a>
                         <ul class="dropdown-menu">
-							{% if current_user.can('sale') %}
+							{% if current_user.can('sale') or current_user.can('all') %}
                             <li><a class="dropdown-item" href="{{ url_for('services_page') }}">Dịch vụ</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('customers_page') }}">Khách hàng</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('customers_page') }}">Khách hàng</a></li>							
+							<li>
+								<a class="dropdown-item" href="{{ url_for('manage_outsource') }}">
+									<i class="fas fa-industry text-info"></i> 
+									<span>Xưởng In Gia Công</span>
+								</a>
+							</li>
 							{% endif %}
 							
-							{% if current_user.can('inventory') %}
+							{% if current_user.can('inventory') or current_user.can('all') %}
                             <li><a class="dropdown-item" href="{{ url_for('materials_page') }}">Vật tư</a></li>
 							<li><a class="dropdown-item" href="{{ url_for('suppliers_page') }}">Nhà Cung Cấp</a></li>													
 							{% endif %}
-							{% if current_user.can('sale') %}
+							{% if current_user.can('sale') or current_user.can('all') %}
 							<li><a class="dropdown-item" href="{{ url_for('coupons_page') }}">Mã Khuyến Mãi</a></li>
 							{% endif %}
                         </ul>

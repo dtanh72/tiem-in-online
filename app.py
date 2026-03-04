@@ -1,9 +1,14 @@
 import os
 import datetime  # <--- BỔ SUNG DÒNG NÀY
 import math      # <--- Bổ sung luôn để dùng cho phân trang sau này
+import csv
+import io
+import json # Đảm bảo đã import thư viện này ở đầu file app.py
+from collections import defaultdict
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from pymongo import MongoClient
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv # Nhớ pip install python-dotenv
@@ -81,6 +86,8 @@ COUPONS_HTML = "HHKM/coupons.html"
 LOGIN_HTML = "HHBM/login.html"
 MANAGE_USERS_HTML = "HHBM/manage_users.html"
 SYSTEM_LOG_HTML = "HHBM/system_logs.html"
+OUTSOURCE_CALCULATOR_HTML="HHGC/outsource_calculator.html"
+MANAGE_OUTSOURCE_HTML="HHGC/manage_outsource.html"
 
 #def get_db_connection():
 #    try:
@@ -142,17 +149,35 @@ def login():
         username = request.form['username']
         password = request.form['password']
         conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM Users WHERE username = %s", (username,))
-        user = cur.fetchone()
-        conn.close()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
-        if user and check_password_hash(user['password_hash'], password):
-            user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'])
-            login_user(user_obj)
-            return redirect(url_for('dashboard_page'))
-        else:
-            flash('Sai mật khẩu!')
+        try:
+            cur.execute("SELECT * FROM Users WHERE username = %s", (username,))
+            user = cur.fetchone()
+            conn.close()
+            
+            if user and check_password_hash(user['password_hash'], password):
+                user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'])
+                login_user(user_obj) #luu session
+                
+                # 🟢 1. GỌI LỆNH GHI LOG ĐĂNG NHẬP Ở ĐÂY
+                log_system_action(
+                    user_id=user['user_id'],
+                    username=user['username'],
+                    full_name=user.get('full_name', ''), # Dùng .get() cho an toàn
+                    action_type='LOGIN',
+                    target_module='Authentication',
+                    description='Đăng nhập hệ thống thành công',
+                    ip_address=request.remote_addr # Lấy IP của người dùng
+                )
+                
+                return redirect(url_for('dashboard_page'))
+            else:
+                flash('Sai tài khoản hoặc mật khẩu!', 'danger')
+        except Exception as e:
+            print(f"🔴 Lỗi hệ thống: {e}")
+            return f"Lỗi hệ thống: {e}", 500
+            
     return render_template(LOGIN_HTML) # Đảm bảo bạn có file login.html
 
 # --- HÀM PHÂN QUYỀN (DECORATOR) ---
@@ -202,8 +227,203 @@ def requires_permission(*allowed_permissions):
 @app.route('/logout')
 @login_required
 def logout():
+    
+    # 🟢 2. GỌI LỆNH GHI LOG ĐĂNG XUẤT TRƯỚC KHI XÓA SESSION
+    log_system_action(
+        user_id=current_user.id,
+        username=current_user.username,
+        full_name=current_user.full_name,
+        action_type='LOGOUT',
+        target_module='Authentication',
+        description='Đăng xuất khỏi hệ thống',
+        ip_address=request.remote_addr
+    )
+    
+    # Xóa thẻ phiên làm việc (Session)
     logout_user()
+    
+    flash('Bạn đã đăng xuất thành công.', 'info')
     return redirect(url_for('login'))
+
+# ======================================================
+# HÀM KẾT NỐI MONGODB
+# ======================================================
+def get_mongo_collection():
+    # Lấy URI từ biến môi trường
+    mongo_uri = os.environ.get('MONGO_URL')
+    if not mongo_uri:
+        raise Exception("Chưa cấu hình MONGO_URL")
+    
+    # Kết nối tới MongoDB
+    client = MongoClient(mongo_uri)
+    
+    # Tạo/Chọn Database tên là 'app_database'
+    db = client['app_database']
+    
+    # Tạo/Chọn Collection (Bảng) tên là 'system_logs'
+    collection = db['system_logs']
+    
+    return collection
+
+# ======================================================
+# QUẢN LÝ SYSTEM LOGS (MONGODB)
+# ======================================================
+@app.route('/system_logs')
+@requires_permission('all') # Chỉ Admin được xem
+def system_logs_page():
+    try:
+        logs_col = get_mongo_collection()
+    except Exception as e:
+        return f"Lỗi kết nối MongoDB: {e}", 500
+        
+    # 1. Lấy tham số từ URL
+    page = request.args.get('page', 1, type=int)
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    action = request.args.get('action')
+    
+    items_per_page = 50
+    offset = (page - 1) * items_per_page
+    
+    # 2. Xây dựng bộ lọc (Query) cho MongoDB
+    query = {}
+    
+    # Xử lý lọc theo ngày tháng
+    if start_date or end_date:
+        query['created_at'] = {}
+        if start_date:
+            # Chuyển chuỗi 'YYYY-MM-DD' thành đối tượng datetime
+            dt_start = datetime.strptime(start_date, '%Y-%m-%d')
+            query['created_at']['$gte'] = dt_start # $gte: Greater than or equal
+        if end_date:
+            # Cuối ngày của end_date
+            dt_end = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            query['created_at']['$lte'] = dt_end # $lte: Less than or equal
+
+    # --- TRƯỜNG HỢP 1: XUẤT CSV ---
+    if action == 'export':
+        # Tìm tất cả, sắp xếp created_at giảm dần (-1)
+        all_logs = list(logs_col.find(query).sort("created_at", -1))
+        
+        si = io.StringIO()
+        cw = csv.writer(si)
+        si.write('\ufeff') # BOM cho Excel tiếng Việt
+        cw.writerow(['Thời gian', 'User', 'Họ tên', 'Hành động', 'Module', 'Chi tiết', 'IP'])
+        
+        for log in all_logs:
+            # Format lại datetime ra chuỗi để in vào CSV
+            created_str = log.get('created_at').strftime('%Y-%m-%d %H:%M:%S') if log.get('created_at') else ''
+            
+            cw.writerow([
+                created_str, 
+                log.get('username', ''), 
+                log.get('full_name', ''), 
+                log.get('action_type', ''), 
+                log.get('target_module', ''), 
+                log.get('description', ''), 
+                log.get('ip_address', '')
+            ])
+            
+        output = make_response(si.getvalue())
+        output.headers["Content-Disposition"] = "attachment; filename=system_logs.csv"
+        output.headers["Content-type"] = "text/csv"
+        return output
+
+    # --- TRƯỜNG HỢP 2: XEM TRÊN WEB ---
+    
+    # Đếm tổng số bản ghi
+    total_records = logs_col.count_documents(query)
+    total_pages = math.ceil(total_records / items_per_page) if total_records > 0 else 1
+    
+    # Lấy dữ liệu phân trang (dùng skip và limit)
+    logs_list = list(
+        logs_col.find(query)
+        .sort("created_at", -1)
+        .skip(offset)
+        .limit(items_per_page)
+    )
+    
+    return render_template(SYSTEM_LOG_HTML, # Đảm bảo tên HTML đúng
+                           logs_list=logs_list,
+                           current_page=page,
+                           total_pages=total_pages,
+                           start_date=start_date,
+                           end_date=end_date,
+                           total_records=total_records)
+
+#ham ghi log
+def log_system_action(user_id, username, full_name, action_type, target_module, description, ip_address):
+    try:
+        logs_col = get_mongo_collection()
+        log_document = {
+            "user_id": user_id,
+            "username": username,       # Lưu thẳng tên vào đây
+            "full_name": full_name,     # Lưu thẳng họ tên vào đây
+            "action_type": action_type,
+            "target_module": target_module,
+            "description": description,
+            "ip_address": ip_address,
+            "created_at": datetime.datetime.now() # MongoDB rất thích kiểu đối tượng Datetime
+        }
+        logs_col.insert_one(log_document) # Lệnh này sẽ tạo ra bảng nếu bảng chưa tồn tại!
+    except Exception as e:
+        print(f"Lỗi không ghi được Log vào Mongo: {e}")
+
+@app.route('/clear_system_logs', methods=['POST'])
+@requires_permission('all')
+def clear_system_logs():
+    try:
+        start_date = request.form.get('start_date')
+        end_date = request.form.get('end_date')
+        
+        # Kiểm tra dữ liệu đầu vào
+        if not start_date or not end_date:
+            return "Vui lòng chọn khoảng thời gian để xóa log!", 400
+            
+        # Chuyển đổi chuỗi ngày tháng (YYYY-MM-DD) sang datetime cho MongoDB
+        dt_start = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        # Ép thời gian của ngày kết thúc thành 23:59:59 để bao trọn ngày hôm đó
+        dt_end = datetime.datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+        
+        # Gọi hàm lấy Collection từ MongoDB (Hàm ta đã viết ở bước trước)
+        logs_col = get_mongo_collection()
+        
+        # --- BƯỚC 1: XÓA LOG CŨ ---
+        # Query xóa của Mongo: tìm các document có created_at nằm trong khoảng thời gian
+        query = {
+            "created_at": {
+                "$gte": dt_start,
+                "$lte": dt_end
+            }
+        }
+        
+        # Thực hiện xóa hàng loạt
+        result = logs_col.delete_many(query)
+        rows_deleted = result.deleted_count
+        
+        # --- BƯỚC 2: GHI LOG VỀ HÀNH ĐỘNG XÓA (QUAN TRỌNG) ---
+        if rows_deleted > 0:
+            description = f"Đã XÓA VĨNH VIỄN {rows_deleted} dòng nhật ký từ ngày {start_date} đến {end_date}"
+            
+            # Gọi hàm log_system_action (phiên bản MongoDB mới)
+            # Truyền trực tiếp thông tin user vào, không cần cursor nữa
+            log_system_action(
+                user_id=current_user.id,
+                username=current_user.username,
+                full_name=current_user.full_name,
+                action_type='DELETE',
+                target_module='System_Logs',
+                description=description,
+                ip_address=request.remote_addr
+            )
+            
+    # Xử lý Exception chuẩn của Python thay vì mysql.connector.Error
+    except Exception as err:
+        print(f"🔴 Lỗi khi xóa log trong MongoDB: {err}")
+        return f"Lỗi hệ thống: {err}", 500
+    
+    # Quay lại trang log
+    return redirect(url_for('system_logs_page'))
 
 # --- DASHBOARD CHÍNH THỨC ---
 @app.route('/')
@@ -657,6 +877,10 @@ def create_order_page():
     cur.execute(sql_coupons, (today, today))
     coupons = cur.fetchall()
     
+    # 🟢 THÊM 2 DÒNG NÀY VÀO ĐỂ LẤY DANH SÁCH XƯỞNG
+    cur.execute("SELECT partner_id, partner_name FROM Outsource_Partners WHERE is_active = TRUE ORDER BY partner_name")
+    partners_list = cur.fetchall()
+    
     cur.close()
     conn.close()
     
@@ -664,7 +888,8 @@ def create_order_page():
                            customers_list=customers, 
                            services_list=services,
                            equipment_list=equipment, 
-                           active_coupons=coupons)
+                           active_coupons=coupons,
+                           partners=partners_list) # <-- Bổ sung dòng này
 
 # 2. (POST) Xử lý Submit Order (LOGIC PHỨC TẠP NHẤT)
 @app.route('/submit_order', methods=['POST'])
@@ -1893,12 +2118,6 @@ def toggle_supplier(id):
     conn.close()
     return redirect(url_for('suppliers_page'))
 
-
-@app.route('/system_logs')
-@login_required
-def system_logs_page():
-    return "<h1>Tính năng LOG HỆ THỐNG đang được chuyển đổi...</h1><a href='/dashboard'>Quay lại</a>"
-
 # ======================================================
 # QUẢN LÝ NHẬP KHO (MATERIAL IMPORTS)
 # ======================================================
@@ -2593,6 +2812,193 @@ def toggle_coupon_status(coupon_id):
     conn.close()
     return redirect(url_for('coupons_page'))
 
+# ==========================================
+# 1. TRANG QUẢN LÝ XƯỞNG VÀ BẢNG GIÁ
+# ==========================================
+@app.route('/manage_outsource')
+@requires_permission('admin', 'sale')
+def manage_outsource():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # Lấy danh sách xưởng
+    cursor.execute("SELECT * FROM Outsource_Partners ORDER BY partner_id DESC")
+    partners = cursor.fetchall()
+    
+    # Lấy toàn bộ danh mục và giá đi kèm
+    sql_prices = """
+        SELECT C.partner_id, C.category_id, C.category_name, C.type, C.unit, 
+               P.price_id, P.item_name, P.min_qty, P.max_qty, P.unit_price
+        FROM Outsource_Categories C
+        LEFT JOIN Outsource_Prices P ON C.category_id = P.category_id
+        ORDER BY C.partner_id, C.type, P.min_qty
+    """
+    cursor.execute(sql_prices)
+    all_prices = cursor.fetchall()
+    
+    # Nhóm dữ liệu theo partner_id để hiển thị ra HTML dễ hơn
+    grouped_data = defaultdict(list)
+    for row in all_prices:
+        grouped_data[row['partner_id']].append(row)
+        
+    cursor.close()
+    conn.close()
+    
+    return render_template(MANAGE_OUTSOURCE_HTML, partners=partners, grouped_data=grouped_data)
+    
+# --- 1. THÊM XƯỞNG GIA CÔNG MỚI ---
+@app.route('/add_outsource_partner', methods=['POST'])
+@requires_permission('admin', 'sale')
+def add_outsource_partner():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        name = request.form['partner_name']
+        phone = request.form['phone']
+        address = request.form['address']
+        cursor.execute("INSERT INTO Outsource_Partners (partner_name, phone, address) VALUES (%s, %s, %s)", (name, phone, address))
+        conn.commit()
+        flash('Đã thêm xưởng mới thành công!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Lỗi thêm xưởng: {e}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('manage_outsource'))
+
+# --- 2. THÊM DANH MỤC CHO XƯỞNG (VD: "Namecard C300", "In nhanh 4 màu") ---
+@app.route('/add_outsource_category', methods=['POST'])
+@requires_permission('admin', 'sale')
+def add_outsource_category():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        partner_id = request.form['partner_id']
+        category_name = request.form['category_name']
+        type_val = request.form['type']
+        unit = request.form['unit']
+        
+        cursor.execute("""
+            INSERT INTO Outsource_Categories (partner_id, category_name, type, unit) 
+            VALUES (%s, %s, %s, %s)
+        """, (partner_id, category_name, type_val, unit))
+        conn.commit()
+        flash('Đã tạo danh mục dịch vụ mới!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Lỗi tạo danh mục: {e}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('manage_outsource'))
+
+# --- 3. THÊM MỐC GIÁ (HỖ TRỢ GIÁ BẬC THANG) ---
+@app.route('/add_outsource_price', methods=['POST'])
+@requires_permission('admin', 'sale')
+def add_outsource_price():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        category_id = request.form['category_id']
+        item_name = request.form['item_name']
+        min_qty = int(request.form['min_qty'] or 1)
+        max_qty = int(request.form['max_qty'] or 999999)
+        unit_price = float(request.form['unit_price'])
+        
+        cursor.execute("""
+            INSERT INTO Outsource_Prices (category_id, item_name, min_qty, max_qty, unit_price) 
+            VALUES (%s, %s, %s, %s, %s)
+        """, (category_id, item_name, min_qty, max_qty, unit_price))
+        conn.commit()
+        flash('Đã thêm mốc giá thành công!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Lỗi thêm giá: {e}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('manage_outsource'))
+
+# --- 4. CẬP NHẬT CHỈNH SỬA DANH MỤC ---
+@app.route('/edit_outsource_category', methods=['POST'])
+@requires_permission('admin', 'sale')
+def edit_outsource_category():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cat_id = request.form['category_id']
+        cat_name = request.form['category_name']
+        cat_type = request.form['type']
+        unit = request.form['unit']
+        
+        cursor.execute("""
+            UPDATE Outsource_Categories 
+            SET category_name = %s, type = %s, unit = %s 
+            WHERE category_id = %s
+        """, (cat_name, cat_type, unit, cat_id))
+        conn.commit()
+        flash('Đã cập nhật danh mục!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Lỗi cập nhật danh mục: {e}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('manage_outsource'))
+
+# --- 5. CẬP NHẬT CHỈNH SỬA MỐC GIÁ ---
+@app.route('/edit_outsource_price', methods=['POST'])
+@requires_permission('admin', 'sale')
+def edit_outsource_price():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        price_id = request.form['price_id']
+        item_name = request.form['item_name']
+        min_qty = int(request.form['min_qty'] or 1)
+        max_qty = int(request.form['max_qty'] or 999999)
+        unit_price = float(request.form['unit_price'])
+        
+        cursor.execute("""
+            UPDATE Outsource_Prices 
+            SET item_name = %s, min_qty = %s, max_qty = %s, unit_price = %s 
+            WHERE price_id = %s
+        """, (item_name, min_qty, max_qty, unit_price, price_id))
+        conn.commit()
+        flash('Đã cập nhật mốc giá!', 'success')
+    except Exception as e:
+        conn.rollback()
+        flash(f'Lỗi cập nhật mốc giá: {e}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+    return redirect(url_for('manage_outsource'))
+
+# ==========================================
+# 2. API LẤY BẢNG GIÁ KHI CHỌN XƯỞNG (DÙNG CHO TẠO ĐƠN HÀNG)
+# ==========================================
+@app.route('/api/get_partner_prices/<int:partner_id>')
+@requires_permission('sale')
+def api_get_partner_prices(partner_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cursor.execute("""
+        SELECT C.category_id, C.category_name, C.type, C.unit, 
+               P.price_id, P.item_name, P.min_qty, P.max_qty, CAST(P.unit_price AS FLOAT) as unit_price
+        FROM Outsource_Categories C
+        JOIN Outsource_Prices P ON C.category_id = P.category_id
+        WHERE C.partner_id = %s
+        ORDER BY C.type, P.min_qty
+    """, (partner_id,))
+    
+    prices = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    return jsonify({'status': 'success', 'data': prices})
+
 # ======================================================
 # AJAX (GIAO TIẾP NGẦM) - POSTGRESQL
 # ======================================================
@@ -2651,49 +3057,40 @@ def ajax_add_customer():
 @requires_permission('sale', 'inventory')
 def ajax_add_service():
     conn = get_db_connection()
-    cur = conn.cursor()
-    
+    # Bắt buộc dùng RealDictCursor để lấy ID bằng RETURNING
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        name = request.form['service_name']
-        price = float(request.form['base_price'])
+        service_name = request.form.get('service_name')
+        base_price = float(request.form.get('base_price', 0))
+        unit = request.form.get('unit')
+        unit_level2 = request.form.get('unit_level2')
+        unit_level3 = request.form.get('unit_level3')
         
-        u1 = request.form['unit']
-        u2 = request.form.get('unit_level2')
-        u3 = request.form.get('unit_level3')
-        
-        # Xử lý rỗng -> None
-        if not u2 or u2.strip() == '': u2 = None
-        if not u3 or u3.strip() == '': u3 = None
-        
-        # POSTGRES: RETURNING service_id
+        # INSERT và lấy ra ID của dịch vụ vừa tạo
         sql = """
-            INSERT INTO Services (service_name, base_price, unit, unit_level2, unit_level3, description) 
-            VALUES (%s, %s, %s, %s, %s, '')
-            RETURNING service_id
+            INSERT INTO Services (service_name, base_price, unit, unit_level2, unit_level3, is_active) 
+            VALUES (%s, %s, %s, %s, %s, TRUE) RETURNING service_id
         """
-        cur.execute(sql, (name, price, u1, u2, u3))
-        new_id = cur.fetchone()[0]
-        
-        # log_system_action(cur, 'QUICK ADD', 'Services', f"Thêm nhanh DV ID {new_id}")
-        
+        cursor.execute(sql, (service_name, base_price, unit, unit_level2, unit_level3))
+        new_id = cursor.fetchone()['service_id']
         conn.commit()
         
+        # Trả về JSON đúng chuẩn cho Javascript
         return jsonify({
-            'success': True,
-            'new_id': new_id,
-            'new_name': name,
-            'new_price': price,
-            'new_u1': u1,
-            'new_u2': u2 if u2 else '',
-            'new_u3': u3 if u3 else ''
+            'success': True, 
+            'new_id': new_id, 
+            'new_name': service_name,
+            'new_price': base_price,
+            'new_u1': unit,
+            'new_u2': unit_level2 or '',
+            'new_u3': unit_level3 or ''
         })
-        
     except Exception as e:
         conn.rollback()
-        print(f"Lỗi AJAX Service: {e}")
+        print(f"🔴 Lỗi ajax_add_service: {e}")
         return jsonify({'success': False, 'error': str(e)})
     finally:
-        cur.close()
+        cursor.close()
         conn.close()
 
 # 3. AJAX - Thêm nhanh Vật tư (Dùng trong trang Định mức/Kho)

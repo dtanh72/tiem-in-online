@@ -1,0 +1,222 @@
+{% extends 'UI/base.html' %} {% block content %}
+<div class="container mt-4">
+    <h2 class="mb-4 text-primary"><i class="fas fa-calculator"></i> Báo Giá Gia Công (Đối Tác)</h2>
+    
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">1. Cấu Hình Đơn Hàng Gia Công</div>
+                <div class="card-body">
+                    
+                    <div class="row mb-4">
+                        <div class="col-md-7">
+                            <label class="fw-bold text-primary">Chọn Xưởng Đối Tác:</label>
+                            <select id="partner_select" class="form-select border-primary">
+                                <option value="">-- Chọn Xưởng In / Gia Công --</option>
+                                {% for p in partners %}
+                                    <option value="{{ p.partner_id }}">{{ p.partner_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="fw-bold">Thời gian giao hàng dự kiến:</label>
+                            <input type="date" id="delivery_date" class="form-control">
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div id="services_section" style="display: none;">
+                        <p class="text-muted fst-italic mb-3"><i class="fas fa-info-circle"></i> Bảng giá tự động cập nhật theo xưởng bạn chọn.</p>
+                        
+                        <div class="row mb-3 align-items-end bg-light p-2 rounded">
+                            <div class="col-md-5">
+                                <label>Tiền Giấy:</label>
+                                <select id="paper_select" class="form-select service-select" data-category="paper">
+                                    <option value="">-- Không sử dụng --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Số lượng:</label>
+                                <input type="number" id="paper_qty" class="form-control qty-input" value="0" min="0">
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <span class="text-muted">Thành tiền:</span><br>
+                                <strong id="paper_subtotal" class="text-secondary">0 VNĐ</strong>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-end bg-light p-2 rounded">
+                            <div class="col-md-5">
+                                <label>Tiền In:</label>
+                                <select id="print_select" class="form-select service-select" data-category="print">
+                                    <option value="">-- Không sử dụng --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Số lượng:</label>
+                                <input type="number" id="print_qty" class="form-control qty-input" value="0" min="0">
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <span class="text-muted">Thành tiền:</span><br>
+                                <strong id="print_subtotal" class="text-secondary">0 VNĐ</strong>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3 align-items-end bg-light p-2 rounded">
+                            <div class="col-md-5">
+                                <label>Gia công sau in:</label>
+                                <select id="post_select" class="form-select service-select" data-category="post_press">
+                                    <option value="">-- Không sử dụng --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label>Số lượng:</label>
+                                <input type="number" id="post_qty" class="form-control qty-input" value="0" min="0">
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <span class="text-muted">Thành tiền:</span><br>
+                                <strong id="post_subtotal" class="text-secondary">0 VNĐ</strong>
+                            </div>
+                        </div>
+                    </div> <hr>
+                    <div class="row">
+                        <div class="col-md-6 offset-md-6">
+                            <label class="text-danger fw-bold">Biên độ lợi nhuận (%):</label>
+                            <input type="number" id="profit_margin" class="form-control border-danger fs-5" value="40">
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-success sticky-top" style="top: 20px;">
+                <div class="card-header bg-success text-white">2. Tổng Kết Báo Giá</div>
+                <div class="card-body text-end">
+                    
+                    <p class="text-muted mb-1">Ngày giao hẹn khách:</p>
+                    <h6 id="lbl_delivery_date" class="text-dark">Chưa chọn</h6>
+                    <hr>
+
+                    <p class="text-muted mb-1">Tổng vốn gốc (Xưởng tính):</p>
+                    <h5 id="lbl_base_cost">0 VNĐ</h5>
+                    
+                    <p class="text-muted mb-1 mt-3">Tiền lời dự kiến (Tiệm in):</p>
+                    <h5 id="lbl_profit" class="text-primary">0 VNĐ</h5>
+                    <hr>
+
+                    <p class="fw-bold mb-1">BÁO GIÁ CHO KHÁCH:</p>
+                    <h3 id="lbl_suggested_price" class="text-danger fw-bold">0 VNĐ</h3>
+                    
+                    <button class="btn btn-warning w-100 mt-4 fs-5 fw-bold"><i class="fas fa-check-circle"></i> CHỐT ĐƠN</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Nhận toàn bộ bảng giá từ Python
+    const allPricelists = {{ pricelists_json | safe }};
+</script>
+
+<script>
+    $(document).ready(function() {
+        // 1. Khi chọn đối tác (Xưởng)
+        $('#partner_select').change(function() {
+            const partnerId = $(this).val();
+            
+            // Xóa các option cũ
+            $('.service-select').html('<option value="">-- Không sử dụng --</option>');
+            // Đưa số lượng về 0
+            $('.qty-input').val(0);
+            
+            if (partnerId) {
+                $('#services_section').fadeIn();
+                
+                // Lọc ra bảng giá của đúng xưởng này
+                const partnerPrices = allPricelists.filter(p => p.partner_id == partnerId);
+                
+                // Đổ dữ liệu vào từng ô Dropdown theo Danh mục
+                partnerPrices.forEach(item => {
+                    // Tạo thẻ option: value chứa đơn giá để tính toán cho lẹ
+                    const optionHtml = `<option value="${item.unit_price}">${item.item_name} - ${item.unit_price.toLocaleString('vi-VN')} đ/${item.unit}</option>`;
+                    
+                    if (item.category === 'paper') $('#paper_select').append(optionHtml);
+                    if (item.category === 'print') $('#print_select').append(optionHtml);
+                    if (item.category === 'post_press') $('#post_select').append(optionHtml);
+                });
+            } else {
+                $('#services_section').fadeOut();
+            }
+            
+            triggerCalculation();
+        });
+
+        // 2. Cập nhật nhãn ngày giao hàng
+        $('#delivery_date').change(function() {
+            const dateVal = $(this).val();
+            if(dateVal) {
+                // Đổi format YYYY-MM-DD sang DD-MM-YYYY cho đẹp
+                const parts = dateVal.split('-');
+                $('#lbl_delivery_date').text(`${parts[2]}/${parts[1]}/${parts[0]}`);
+            } else {
+                $('#lbl_delivery_date').text('Chưa chọn');
+            }
+        });
+
+        // 3. Hàm tính tiền từng dòng
+        function triggerCalculation() {
+            // Lấy giá và số lượng từng hạng mục
+            const paperPrice = parseFloat($('#paper_select').val()) || 0;
+            const paperQty = parseFloat($('#paper_qty').val()) || 0;
+            const paperTotal = paperPrice * paperQty;
+            $('#paper_subtotal').text(paperTotal.toLocaleString('vi-VN') + ' VNĐ');
+
+            const printPrice = parseFloat($('#print_select').val()) || 0;
+            const printQty = parseFloat($('#print_qty').val()) || 0;
+            const printTotal = printPrice * printQty;
+            $('#print_subtotal').text(printTotal.toLocaleString('vi-VN') + ' VNĐ');
+
+            const postPrice = parseFloat($('#post_select').val()) || 0;
+            const postQty = parseFloat($('#post_qty').val()) || 0;
+            const postTotal = postPrice * postQty;
+            $('#post_subtotal').text(postTotal.toLocaleString('vi-VN') + ' VNĐ');
+
+            // Tính tổng vốn và lời (Gửi lên backend)
+            calculateQuoteAPI(paperTotal, printTotal, postTotal);
+        }
+
+        // 4. Bắt sự kiện thay đổi dịch vụ, thay đổi số lượng, thay đổi % lời
+        $('.service-select, .qty-input, #profit_margin').on('input change', function() {
+            triggerCalculation();
+        });
+
+        // 5. Hàm gửi dữ liệu lên Backend để nhận giá chốt
+        function calculateQuoteAPI(paperCost, printCost, postCost) {
+            const payload = {
+                paper_cost: paperCost,
+                print_cost: printCost,
+                post_cost: postCost,
+                profit_margin: $('#profit_margin').val() || 30
+            };
+
+            $.ajax({
+                url: '/api/calculate_outsource',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function(response) {
+                    if(response.status === 'success') {
+                        $('#lbl_base_cost').text(response.base_cost.toLocaleString('vi-VN') + ' VNĐ');
+                        $('#lbl_profit').text(response.profit_amount.toLocaleString('vi-VN') + ' VNĐ');
+                        $('#lbl_suggested_price').text(response.suggested_price.toLocaleString('vi-VN') + ' VNĐ');
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
