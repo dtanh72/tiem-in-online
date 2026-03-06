@@ -121,16 +121,20 @@
 			<label class="form-check-label fw-bold text-danger">Gửi in gia công ngoài</label>
 		</div>
 
-		<div id="outsource_section" style="display: none;" class="bg-light p-3 border">
-			<select id="partner_select" name="outsource_partner_id" class="form-select mb-3">
-				<option value="">-- Chọn Xưởng In --</option>
+		<div id="outsource_section" style="display: none;" class="bg-light p-3 border mb-4">
+			<select id="partner_select" name="outsource_partner_id" class="form-select mb-3 border-danger">
+				<option value="">-- Chọn Xưởng In Đối Tác --</option>
 				{% for p in partners %} <option value="{{ p.partner_id }}">{{ p.partner_name }}</option> {% endfor %}
 			</select>
 
-			<div id="dynamic_outsource_services"></div>
+            <div id="dynamic_outsource_services"></div>
 			
+            <button type="button" class="btn btn-sm btn-outline-danger mt-2 fw-bold" id="btn_add_outsource_row" style="display: none;">
+                <i class="fas fa-plus"></i> Thêm dịch vụ gia công
+            </button>
+
 			<hr>
-			<h5 class="text-end">Tiền vốn gia công: <span id="lbl_outsource_cost" class="text-danger">0 đ</span></h5>
+			<h5 class="text-end">Tổng tiền vốn gia công: <span id="lbl_outsource_cost" class="text-danger fw-bold">0 đ</span></h5>
 		</div>
     </form>
 
@@ -690,7 +694,7 @@
 			document.getElementById('applyCouponBtn').click();
 		}
 		
-		// === CODE XỬ LÝ GIA CÔNG NGOÀI (JAVASCRIPT THUẦN) ===
+		// === CODE XỬ LÝ GIA CÔNG NGOÀI (NÂNG CẤP ĐA DÒNG & PHÍ TRANG ĐẦU) ===
 		let currentPartnerPrices = [];
 
 		document.addEventListener('DOMContentLoaded', function() {
@@ -699,8 +703,9 @@
 			const partnerSelect = document.getElementById('partner_select');
 			const dynamicServices = document.getElementById('dynamic_outsource_services');
 			const lblOutsourceCost = document.getElementById('lbl_outsource_cost');
+            const btnAddOutsourceRow = document.getElementById('btn_add_outsource_row');
 
-			// 1. Bật/Tắt khu vực gia công (Dùng hàm ẩn/hiện cơ bản)
+			// 1. Bật/Tắt khu vực gia công
 			if (isOutsourcedCheckbox) {
 				isOutsourcedCheckbox.addEventListener('change', function() {
 					if (this.checked) {
@@ -712,11 +717,11 @@
 				});
 			}
 
-			// 2. Khi chọn xưởng -> Gọi API lấy bảng giá bằng Fetch
+			// 2. Khi chọn xưởng -> Gọi API lấy bảng giá
 			if (partnerSelect) {
 				partnerSelect.addEventListener('change', function() {
 					const partnerId = this.value;
-					dynamicServices.innerHTML = '';
+					dynamicServices.innerHTML = ''; // Xóa sạch các dòng cũ
 					currentPartnerPrices = [];
 
 					if (partnerId) {
@@ -725,71 +730,126 @@
 						.then(data => {
 							if (data.status === 'success') {
 								currentPartnerPrices = data.data;
-								renderServiceInputs(data.data);
+                                btnAddOutsourceRow.style.display = 'inline-block'; // Hiện nút thêm dòng
+                                addOutsourceRow(); // Tự động thêm 1 dòng trống đầu tiên
 							}
 						})
 						.catch(error => console.error('Lỗi tải bảng giá gia công:', error));
-					}
+					} else {
+                        btnAddOutsourceRow.style.display = 'none';
+                    }
 				});
 			}
 
-			// 3. Render các ô nhập liệu
-			function renderServiceInputs(data) {
-				const categories = [...new Set(data.map(item => item.category_name))];
-				let htmlContent = '';
-				
-				categories.forEach(catName => {
-					const items = data.filter(d => d.category_name === catName);
-					const type = items[0].type;
-					const unit = items[0].unit;
-					
-					let html = `
-					<div class="row mb-2 align-items-center outsource-row">
-						<div class="col-md-5">
-							<label>${catName}</label>
-							<select class="form-select service-select" data-cat="${catName}">
-								<option value="">-- Chọn --</option>`;
-								
-					const uniqueItems = [...new Set(items.map(i => i.item_name))];
-					uniqueItems.forEach(itemName => {
-						html += `<option value="${itemName}">${itemName}</option>`;
-					});
-					
-					html += `</select>
-						</div>
-						<div class="col-md-3">
-							<label>Số lượng (${unit})</label>
-							<input type="number" class="form-control service-qty" value="0" min="0">
-						</div>
-						<div class="col-md-4 text-end">
-							<span class="text-muted">Thành tiền: </span>
-							<strong class="row-total text-primary">0 đ</strong>
-						</div>
-					</div>`;
-					
-					htmlContent += html;
-				});
-				
-				dynamicServices.innerHTML = htmlContent;
-			}
+            // 3. Hàm tạo một dòng nhập liệu mới
+            function addOutsourceRow() {
+                // Lấy danh sách các Category (Danh mục) duy nhất từ dữ liệu xưởng
+                const categories = [...new Set(currentPartnerPrices.map(item => item.category_name))];
+                let catOptions = '<option value="">-- Chọn Danh mục --</option>';
+                categories.forEach(cat => {
+                    catOptions += `<option value="${cat}">${cat}</option>`;
+                });
 
-			// 4. Hàm tính toán giá bậc thang
+                // Tạo giao diện HTML cho dòng mới
+                const rowHtml = `
+                <div class="row mb-2 align-items-center outsource-row bg-white p-2 border rounded">
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm outsource-cat-select">
+                            ${catOptions}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm outsource-item-select">
+                            <option value="">-- Chọn Dịch vụ --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <input type="number" class="form-control form-control-sm outsource-qty" value="0" min="0" placeholder="Số lượng">
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check form-switch mt-1">
+                            <input class="form-check-input first-page-fee" type="checkbox" title="Cộng thêm 10.000đ cho trang đầu tiên">
+                            <label class="form-check-label small text-danger">+10k phí trang đầu</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <strong class="row-total text-primary me-2">0 đ</strong>
+                        <button type="button" class="btn btn-sm btn-outline-danger btn-remove-outsource" title="Xóa dòng này">X</button>
+                    </div>
+                </div>`;
+                
+                // Chèn dòng mới vào giao diện
+                dynamicServices.insertAdjacentHTML('beforeend', rowHtml);
+            }
+
+            // Gắn sự kiện cho nút "Thêm dịch vụ gia công"
+            if (btnAddOutsourceRow) {
+                btnAddOutsourceRow.addEventListener('click', addOutsourceRow);
+            }
+
+            // 4. Lắng nghe các sự kiện Đổi Danh Mục, Gõ Số Lượng, Tick Phụ Phí, Xóa Dòng (Sử dụng Event Delegation)
+            dynamicServices.addEventListener('change', function(e) {
+                // A. Nếu người dùng chọn Danh Mục -> Đổ danh sách Dịch Vụ tương ứng
+                if (e.target.classList.contains('outsource-cat-select')) {
+                    const selectedCat = e.target.value;
+                    const row = e.target.closest('.outsource-row');
+                    const itemSelect = row.querySelector('.outsource-item-select');
+                    
+                    // Lọc các dịch vụ thuộc danh mục này
+                    const items = currentPartnerPrices.filter(d => d.category_name === selectedCat);
+                    const uniqueItems = [...new Set(items.map(i => i.item_name))];
+                    
+                    // Tạo options
+                    let itemOptions = '<option value="">-- Chọn Dịch vụ --</option>';
+                    uniqueItems.forEach(itemName => {
+                        itemOptions += `<option value="${itemName}">${itemName}</option>`;
+                    });
+                    itemSelect.innerHTML = itemOptions;
+                    
+                    // Reset số lượng và tính lại
+                    row.querySelector('.outsource-qty').value = 0;
+                    calculateOutsourceCost();
+                }
+
+                // B. Nếu đổi dịch vụ, đổi phụ phí -> Tính lại tiền
+                if (e.target.classList.contains('outsource-item-select') || e.target.classList.contains('first-page-fee')) {
+                    calculateOutsourceCost();
+                }
+            });
+
+            // Lắng nghe sự kiện Gõ số lượng
+            dynamicServices.addEventListener('input', function(e) {
+                if (e.target.classList.contains('outsource-qty')) calculateOutsourceCost();
+            });
+
+            // Lắng nghe sự kiện Bấm nút XÓA dòng
+            dynamicServices.addEventListener('click', function(e) {
+                if (e.target.classList.contains('btn-remove-outsource')) {
+                    e.target.closest('.outsource-row').remove();
+                    calculateOutsourceCost();
+                }
+            });
+
+			// 5. Hàm tính toán giá tổng cộng (Bao gồm giá bậc thang + Phụ phí 10k)
 			function calculateOutsourceCost() {
 				let totalCost = 0;
 
 				document.querySelectorAll('.outsource-row').forEach(function(row) {
-					const selectEl = row.querySelector('.service-select');
-					const qtyEl = row.querySelector('.service-qty');
+					const catEl = row.querySelector('.outsource-cat-select');
+					const itemEl = row.querySelector('.outsource-item-select');
+					const qtyEl = row.querySelector('.outsource-qty');
+                    const feeEl = row.querySelector('.first-page-fee');
 					const totalEl = row.querySelector('.row-total');
 					
-					if (!selectEl || !qtyEl || !totalEl) return;
+					if (!catEl || !itemEl || !qtyEl || !totalEl) return;
 
-					const catName = selectEl.getAttribute('data-cat');
-					const itemName = selectEl.value;
+					const catName = catEl.value;
+					const itemName = itemEl.value;
 					const qty = parseFloat(qtyEl.value) || 0;
+                    const isFirstPageFee = feeEl.checked;
 					let rowCost = 0;
 
-					if (itemName && qty > 0) {
+					if (catName && itemName && qty > 0) {
 						// Lọc và dò giá bậc thang
 						const pricingRules = currentPartnerPrices.filter(p => p.category_name === catName && p.item_name === itemName);
 						let applicablePrice = 0;
@@ -805,7 +865,14 @@
 							applicablePrice = pricingRules[0].unit_price; 
 						}
 
+                        // Tính tiền cơ bản
 						rowCost = applicablePrice * qty;
+                        
+                        // CỘNG THÊM 10.000Đ PHÍ TRANG ĐẦU TIÊN NẾU CÓ TICK
+                        if (isFirstPageFee) {
+                            rowCost += 10000;
+                        }
+
 						totalEl.textContent = rowCost.toLocaleString('vi-VN') + ' đ';
 					} else {
 						totalEl.textContent = '0 đ';
@@ -815,15 +882,7 @@
 
 				lblOutsourceCost.textContent = totalCost.toLocaleString('vi-VN') + ' đ';
 			}
-
-			// 5. Lắng nghe sự kiện gõ số lượng và chọn dịch vụ
-			document.addEventListener('input', function(e) {
-				if (e.target.classList.contains('service-qty')) calculateOutsourceCost();
-			});
-			
-			document.addEventListener('change', function(e) {
-				if (e.target.classList.contains('service-select')) calculateOutsourceCost();
-			});
 		});
+		// === KẾT THÚC CODE XỬ LÝ GIA CÔNG NGOÀI ===
     </script>	
 {% endblock %}
