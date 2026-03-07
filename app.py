@@ -900,6 +900,18 @@ def submit_order():
     cur = conn.cursor(cursor_factory=RealDictCursor) 
     
     try:
+        # 1. LẤY THÔNG TIN CÔNG TẮC GIA CÔNG
+        # 1. LẤY THÔNG TIN CÔNG TẮC GIA CÔNG
+        # (Lưu ý checkbox HTML khi tick sẽ gửi về giá trị 'on')
+        is_outsourced = True if request.form.get('is_outsourced') == 'on' else False
+        
+        # ĐỔI TÊN BIẾN partner_id THÀNH outsource_partner_id CHO KHỚP VỚI SQL CỦA BẠN
+        outsource_partner_id = request.form.get('outsource_partner_id') if is_outsourced else None
+        
+        # Phải gọi đúng tên là 'outsource_base_cost' (Không có chữ _input ở đuôi)
+        outsource_base_cost = float(request.form.get('outsource_base_cost') or 0)
+        outsource_data = request.form.get('outsource_data')
+        
         # --- Lấy Input ---
         customer_id = request.form['customer_id']
         tax_rate = float(request.form['tax_rate'])
@@ -927,14 +939,29 @@ def submit_order():
 
         # --- B2: Insert Order (POSTGRES RETURNING) ---
         sql_order = """
-            INSERT INTO Orders (customer_id, status, subtotal, tax_rate, tax_amount, coupon_code, discount_amount, total_amount, quote_id)
-            VALUES (%s, 'processing', %s, %s, %s, %s, %s, %s, NULL)
+            INSERT INTO Orders (customer_id, status, subtotal, tax_rate, tax_amount, coupon_code, 
+            discount_amount, total_amount, is_outsourced, outsource_partner_id, outsource_base_cost, quote_id)
+            VALUES (%s, 'processing', %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
             RETURNING order_id
         """
-        cur.execute(sql_order, (customer_id, subtotal, tax_rate, tax_amount, coupon_code, discount_amount, total_amount))
+        cur.execute(sql_order, (customer_id, subtotal, tax_rate, tax_amount, coupon_code, discount_amount, total_amount, is_outsourced, outsource_partner_id, outsource_base_cost))
         
         # Lấy ID đơn hàng mới
         new_order_id = cur.fetchone()['order_id']
+        
+        # ==========================================
+        # 3. THÊM ĐOẠN NÀY ĐỂ LƯU CHI TIẾT GIA CÔNG
+        # ==========================================
+        outsource_data = request.form.get('outsource_data')
+        if is_outsourced and outsource_data:
+            items = json.loads(outsource_data)
+            for item in items:
+                cur.execute("""
+                    INSERT INTO Order_Outsource_Items 
+                    (order_id, category_name, item_name, quantity, unit_price, total_price, is_first_page_fee) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (new_order_id, item['category_name'], item['item_name'], 
+                      item['quantity'], item['unit_price'], item['total_price'], item['is_first_page_fee']))
         
         # Cập nhật Coupon used_count
         if coupon_code:
@@ -1107,31 +1134,36 @@ def orders_history_page():
 @requires_permission('sale', 'inventory')
 def order_detail_page(order_id):
     conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Info
-    sql_info = """
-        SELECT O.*, C.customer_name, C.phone 
-        FROM Orders O JOIN Customers C ON O.customer_id = C.customer_id
-        WHERE O.order_id = %s
-    """
-    cur.execute(sql_info, (order_id,))
-    info = cur.fetchone()
+    # 1. Lấy thông tin đơn hàng (JOIN thêm bảng Outsource_Partners để lấy tên xưởng)
+    cursor.execute("""
+        SELECT o.*, c.customer_name, c.phone, 
+               p.partner_name, p.phone as partner_phone
+        FROM Orders o
+        LEFT JOIN Customers c ON o.customer_id = c.customer_id
+        LEFT JOIN Outsource_Partners p ON o.outsource_partner_id = p.partner_id
+        WHERE o.order_id = %s
+    """, (order_id,))
+    order = cursor.fetchone()
     
-    # Items
-    sql_items = """
-        SELECT QI.*, S.service_name, S.unit 
-        FROM Order_Items QI JOIN Services S ON QI.service_id = S.service_id
-        WHERE QI.order_id = %s
-    """
-    cur.execute(sql_items, (order_id,))
-    items = cur.fetchall()
+    # 1. Lấy dịch vụ in tại nhà
+    cursor.execute("SELECT * FROM Order_Items WHERE order_id = %s", (order_id,))
+    order_items = cursor.fetchall()
     
-    cur.close()
+    # 2. Lấy chi tiết Dịch vụ Gia công ngoài (Nếu có)
+    outsource_items = []
+    if order and order['is_outsourced']:
+        cursor.execute("SELECT * FROM Order_Outsource_Items WHERE order_id = %s", (order_id,))
+        outsource_items = cursor.fetchall()
+        
+    cursor.close()
     conn.close()
     
-    if not info: return "Not Found", 404
-    return render_template(CT_DH_HTML, order_info=info, order_items=items)
+    #if not info: return "Not Found", 404
+    return render_template(CT_DH_HTML, order=order, 
+                            order_items=order_items,
+                            outsource_items=outsource_items)
 
 # ======================================================
 # XỬ LÝ THANH TOÁN & GIAO HÀNG (ORDERS) - POSTGRESQL
@@ -1226,6 +1258,45 @@ def update_delivery_status(order_id):
         cur.close()
         conn.close()
         
+    return redirect(url_for('order_detail_page', order_id=order_id))
+    
+@app.route('/update_outsource_status', methods=['POST'])
+@requires_permission('sale', 'admin') # Phân quyền cho Sale và Admin
+def update_outsource_status():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # 1. Lấy dữ liệu từ Form (Modal) gửi lên
+        order_id = request.form.get('order_id')
+        delivery_date = request.form.get('delivery_date')
+        status = request.form.get('status')
+        
+        # 2. Xử lý trường hợp ngày rỗng (Tránh lỗi Database)
+        if not delivery_date or delivery_date.strip() == '':
+            delivery_date = None  # Đổi thành None để SQL lưu là NULL
+            
+        # 3. Thực hiện lệnh UPDATE vào Database
+        cursor.execute("""
+            UPDATE Orders 
+            SET outsource_delivery_date = %s, 
+                outsource_status = %s 
+            WHERE order_id = %s
+        """, (delivery_date, status, order_id))
+        
+        conn.commit()
+        flash('Đã cập nhật tiến độ gia công thành công!', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"🔴 Lỗi khi cập nhật trạng thái gia công: {e}")
+        flash(f'Đã xảy ra lỗi khi cập nhật: {e}', 'danger')
+        
+    finally:
+        cursor.close()
+        conn.close()
+        
+    # 4. Quay trở lại đúng trang Chi tiết của đơn hàng vừa sửa
     return redirect(url_for('order_detail_page', order_id=order_id))
 
 # ======================================================
@@ -2862,6 +2933,10 @@ def add_outsource_partner():
     except Exception as e:
         conn.rollback()
         flash(f'Lỗi thêm xưởng: {e}', 'danger')
+        # 1. In lỗi ra màn hình Terminal (màn hình đen)
+        print(f"🔴 LỖI THÊM XƯỞNG DATABASE: {e}") 
+        # 2. Dừng web lại và in thẳng lỗi ra trình duyệt cho dễ nhìn
+        return f"<h1>HỆ THỐNG BÁO LỖI:</h1><p>{e}</p>", 500
     finally:
         cursor.close()
         conn.close()

@@ -4,9 +4,9 @@
 
 {% block content %}
 
-    <h1>Chi tiết Đơn Hàng #{{ order_info.order_id }}</h1>
+    <h1>Chi tiết Đơn Hàng #{{ order.order_id }}</h1>
 	
-	{% if order_info.status == 'cancelled' %}
+	{% if order.status == 'cancelled' %}
 		<div class="alert alert-danger fw-bold text-center">
 			⚠️ ĐƠN HÀNG NÀY ĐÃ BỊ HỦY - CHẾ ĐỘ CHỈ XEM (READ-ONLY)
 		</div>
@@ -24,30 +24,30 @@
 					</tr>
 					<tr>
 						<th><strong>Khách hàng:</strong></th>
-						<td>{{ order_info.customer_name }}</td>
+						<td>{{ order.customer_name }}</td>
 					</tr>
 					<tr>
 						<th><strong>Ngày đặt:</strong></th>
-						<td>{{ order_info.order_date }}</td>
+						<td>{{ order.order_date }}</td>
 					</tr>
 					<tr>
 						<th><strong>Tổng trước thuế:</strong></th>
-						<td>{{ order_info.subtotal|currency }} vnđ</td>
+						<td>{{ order.subtotal|currency }} vnđ</td>
 					</tr>
 					<tr>
-						<th><strong>Thuế ({{ order_info.tax_rate }}%):</strong></th>
-						<td>{{ order_info.tax_amount|currency }} vnđ</td>
+						<th><strong>Thuế ({{ order.tax_rate }}%):</strong></th>
+						<td>{{ order.tax_amount|currency }} vnđ</td>
 					</tr>
 					<tr>
 						<th><strong>Tổng tiền hóa đơn:</strong></th>
-						<td>{{ order_info.total_amount|currency }} vnđ</td>
+						<td>{{ order.total_amount|currency }} vnđ</td>
 					</tr>
 					<tr>
 						<th><strong>Đã thanh toán:</strong></th>
-						<td>{{ order_info.amount_paid|currency }} vnđ</td>
+						<td>{{ order.amount_paid|currency }} vnđ</td>
 					</tr>
 					<tr>
-							{% set amount_due = order_info.total_amount - order_info.amount_paid %}
+							{% set amount_due = order.total_amount - order.amount_paid %}
 							<p style="font-size: 1.2em; font-weight: bold; {% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
 								<th>Còn Nợ:</th>														
 								<td style="{% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
@@ -61,17 +61,17 @@
 					</tr>
 					<tr>
 						<th><strong>Trạng thái Giao hàng:</strong></th>
-						<td>{{ order_info.delivery_status }}</td>
+						<td>{{ order.delivery_status }}</td>
 					</tr>
 				</thead>
 			</table>           
             
         </div>
 
-        {% if amount_due > 0 and order_info.status != 'cancelled' %}
+        {% if amount_due > 0 and order.status != 'cancelled' %}
         <div class="mb-3">
             <h2>Ghi nhận Thanh toán</h2>
-            <form action="{{ url_for('log_payment', order_id=order_info.order_id) }}" method="POST" class="card card-body bg-light mb-4">
+            <form action="{{ url_for('log_payment', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4">
                 <div class="mb-3">
                     <label for="amount_received" class="form-label">Số tiền nhận (vnđ):</label><br>
                     <input type="number" id="amount_received" name="amount_received" 
@@ -97,14 +97,14 @@
             </form>
         </div>
         {% endif %}
-        {% if order_info.delivery_status != 'delivered' and order_info.status != 'cancelled' %}
+        {% if order.delivery_status != 'delivered' and order.status != 'cancelled' %}
         <div class="mb-3">
             <h2>Trạng thái Giao hàng</h2>
-            <form action="{{ url_for('update_delivery_status', order_id=order_info.order_id) }}" method="POST" class="card card-body bg-light mb-4">
-                <p>Trạng thái hiện tại: <strong>{{ order_info.delivery_status }}</strong></p>
+            <form action="{{ url_for('update_delivery_status', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4">
+                <p>Trạng thái hiện tại: <strong>{{ order.delivery_status }}</strong></p>
                 <select name="delivery_status" class="form-control">
-                    <option value="pending" {% if order_info.delivery_status == 'pending' %}selected{% endif %}>Chưa giao</option>
-                    <option value="delivered" {% if order_info.delivery_status == 'delivered' %}selected{% endif %}>Đã giao</g option>
+                    <option value="pending" {% if order.delivery_status == 'pending' %}selected{% endif %}>Chưa giao</option>
+                    <option value="delivered" {% if order.delivery_status == 'delivered' %}selected{% endif %}>Đã giao</g option>
                 </select>
                 <button type="submit" 
 				        style="margin-top: 15px; padding: 10px; background: #007bff; color: white; border: none;"
@@ -144,9 +144,111 @@
             {% endfor %}
             <tr >
                 <td colspan="4" style="text-align: right;">TỔNG CỘNG</td>
-                <td>{{ order_info.total_amount|currency }}</td>
+                <td>{{ order.total_amount|currency }}</td>
             </tr>
         </tbody>
     </table>
+	
+	{% if order.is_outsourced %}
+	<div class="card border-danger mb-4 shadow-sm">
+		<div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+			<h5 class="mb-0"><i class="fas fa-truck-loading"></i> Thông tin In Gia Công (Nội bộ)</h5>
+			<button class="btn btn-sm btn-light text-danger fw-bold" data-bs-toggle="modal" data-bs-target="#updateOutsourceModal">
+				<i class="fas fa-edit"></i> Cập nhật Tiến độ
+			</button>
+		</div>
+		<div class="card-body bg-light">
+			
+			<div class="row mb-3 text-center">
+				<div class="col-md-3 border-end">
+					<small class="text-muted d-block">Xưởng Đối Tác</small>
+					<strong class="text-primary fs-5">{{ order.partner_name }}</strong>
+					<div class="small"><i class="fas fa-phone"></i> {{ order.partner_phone or 'N/A' }}</div>
+				</div>
+				<div class="col-md-3 border-end">
+					<small class="text-muted d-block">Tổng Vốn Gia Công</small>
+					<strong class="text-danger fs-5">{{ "{:,.0f}".format(order.outsource_base_cost) }} đ</strong>
+				</div>
+				<div class="col-md-3 border-end">
+					<small class="text-muted d-block">Ngày Hẹn Giao</small>
+					<strong class="fs-5 text-dark">
+						{{ order.outsource_delivery_date.strftime('%d/%m/%Y') if order.outsource_delivery_date else 'Chưa hẹn' }}
+					</strong>
+				</div>
+				<div class="col-md-3">
+					<small class="text-muted d-block">Trạng thái Xưởng</small>
+					{% if order.outsource_status == 'Đã nhận hàng' %}
+						<span class="badge bg-success fs-6 mt-1"><i class="fas fa-check-circle"></i> Đã nhận hàng</span>
+					{% elif order.outsource_status == 'Đang sản xuất' %}
+						<span class="badge bg-primary fs-6 mt-1"><i class="fas fa-cog fa-spin"></i> Đang sản xuất</span>
+					{% else %}
+						<span class="badge bg-warning text-dark fs-6 mt-1"><i class="fas fa-clock"></i> Đang chờ xưởng</span>
+					{% endif %}
+				</div>
+			</div>
+
+			<table class="table table-sm table-bordered bg-white mb-0">
+				<thead class="table-secondary">
+					<tr>
+						<th>Danh mục</th>
+						<th>Dịch vụ / Vật tư</th>
+						<th class="text-center">Số lượng</th>
+						<th class="text-end">Đơn giá vốn</th>
+						<th class="text-end">Thành tiền</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% for item in outsource_items %}
+					<tr>
+						<td>{{ item.category_name }}</td>
+						<td>
+							{{ item.item_name }}
+							{% if item.is_first_page_fee %}
+								<span class="badge bg-danger ms-2">+10k phí trang đầu</span>
+							{% endif %}
+						</td>
+						<td class="text-center">{{ item.quantity }}</td>
+						<td class="text-end">{{ "{:,.0f}".format(item.unit_price) }} đ</td>
+						<td class="text-end fw-bold text-secondary">{{ "{:,.0f}".format(item.total_price) }} đ</td>
+					</tr>
+					{% else %}
+					<tr><td colspan="5" class="text-center text-muted">Chưa có chi tiết hạng mục.</td></tr>
+					{% endfor %}
+				</tbody>
+			</table>
+		</div>
+	</div>
+
+	<div class="modal fade" id="updateOutsourceModal" tabindex="-1">
+		<div class="modal-dialog">
+			<form action="{{ url_for('update_outsource_status') }}" method="POST" class="modal-content">
+				<div class="modal-header bg-danger text-white">
+					<h5 class="modal-title">Cập nhật Tiến độ Gia công</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<input type="hidden" name="order_id" value="{{ order.order_id }}">
+					
+					<div class="mb-3">
+						<label class="fw-bold">Xưởng hẹn ngày nào giao?</label>
+						<input type="date" name="delivery_date" class="form-control" 
+							   value="{{ order.outsource_delivery_date.strftime('%Y-%m-%d') if order.outsource_delivery_date else '' }}">
+					</div>
+					<div class="mb-3">
+						<label class="fw-bold">Trạng thái hiện tại:</label>
+						<select name="status" class="form-select">
+							<option value="Đang chờ xưởng" {% if order.outsource_status == 'Đang chờ xưởng' %}selected{% endif %}>Đang chờ xưởng</option>
+							<option value="Đang sản xuất" {% if order.outsource_status == 'Đang sản xuất' %}selected{% endif %}>Xưởng đang sản xuất</option>
+							<option value="Đã nhận hàng" {% if order.outsource_status == 'Đã nhận hàng' %}selected{% endif %}>Đã nhận hàng từ xưởng</option>
+						</select>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="submit" class="btn btn-danger">Lưu Cập Nhật</button>
+				</div>
+			</form>
+		</div>
+	</div>
+	{% endif %}
 
 {% endblock %}

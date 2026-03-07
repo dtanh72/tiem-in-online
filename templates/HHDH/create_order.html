@@ -7,6 +7,8 @@
     <h1>Tạo Đơn hàng Mới</h1>
 
     <form action="{{ url_for('submit_order') }}" method="POST">
+		<input type="hidden" name="outsource_data" id="outsource_data_input">
+		<input type="hidden" name="outsource_base_cost" id="outsource_base_cost_input" value="0">
         <div class="container">
             <div class="row mb-3 bg-light p-3 rounded shadow-sm">
 				<div class="col-md-6">					
@@ -55,9 +57,12 @@
                         <p class="mb-1">Tiền thuế: <span id="tax_amount">0</span> vnđ</p>
                         
                         <div class="input-group input-group-sm mt-2">
-						<input type="text" id="coupon_code_input" class="form-control" placeholder="Nhập mã KM">
-						<button class="btn btn-outline-secondary" type="button" id="applyCouponBtn">Áp dụng</button>
-						</div>
+                            <input type="text" id="coupon_code_input" class="form-control" placeholder="Nhập mã KM">
+                            <button class="btn btn-outline-secondary" type="button" id="applyCouponBtn">Áp dụng</button>
+                            <button class="btn btn-outline-danger" type="button" id="cancelCouponBtn" style="display: none;">
+                                <i class="fas fa-times"></i> Hủy mã
+                            </button>
+                        </div>
 						<div id="coupon_message" class="small mt-1"></div>
 						<div class="mt-2">
 							<small class="text-muted fw-bold">Mã đang chạy:</small>
@@ -446,7 +451,7 @@
 					subTotal += lineTotal;
 				});
 				
-				// ... (Phần tính thuế và tổng cộng giữ nguyên) ...
+				// Phần tính thuế
 				const taxRate = parseFloat(document.getElementById('tax_rate').value) || 0;
 				const taxAmount = subTotal * (taxRate / 100);
 				
@@ -458,29 +463,30 @@
 				let finalDiscount = currentDiscount;
 				if (finalDiscount > totalWithType) finalDiscount = totalWithType;
 				
+                // TÍNH TOÁN RA SỐ TIỀN CUỐI CÙNG (Đã trừ mã giảm giá)
 				const grandTotal = totalWithType - finalDiscount;
 				
 				document.getElementById('sub_total').textContent = subTotal.toLocaleString('vi-VN');
 				document.getElementById('tax_amount').textContent = taxAmount.toLocaleString('vi-VN');
 				
 				document.getElementById('discount_display').textContent = finalDiscount.toLocaleString('vi-VN');
-				document.getElementById('final_discount_amount').value = finalDiscount; // Cập nhật input ẩn
+				document.getElementById('final_discount_amount').value = finalDiscount; 
 				
-				document.getElementById('grand_total').textContent = (subTotal + taxAmount).toLocaleString('vi-VN');
+                // 🟢 ĐÃ SỬA LỖI Ở DÒNG NÀY: Dùng biến grandTotal thay vì cộng lại
+				document.getElementById('grand_total').textContent = grandTotal.toLocaleString('vi-VN');
             }
 			
-			// 2. Xử lý nút Áp dụng Mã
-			document.getElementById('applyCouponBtn').addEventListener('click', function() {
-				const code = document.getElementById('coupon_code_input').value;
-				// Lấy tổng tiền hiện tại (gồm cả thuế hoặc chưa tùy chính sách, ở đây lấy subTotal cho an toàn)
-				// Lưu ý: Phải parse lại từ text hoặc tính lại subTotal.
-				// Cách tốt nhất: Gọi hàm tính subTotal nhanh tại đây
-				let tempSubTotal = 0;
-				document.querySelectorAll('.line_total_display').forEach(el => {
-					tempSubTotal += parseFloat(el.value.replace(/\./g, '').replace(/,/g, '')) || 0; // Xử lý xóa dấu phẩy nếu có
-				});
-				// Hoặc đơn giản hơn: Lấy giá trị thô từ phép tính trước nếu bạn lưu biến toàn cục. 
-				// Ở đây ta dùng DOM trick:
+			// === 2. XỬ LÝ ÁP DỤNG MÀ HỦY MÃ GIẢM GIÁ ===
+			const applyCouponBtn = document.getElementById('applyCouponBtn');
+			const cancelCouponBtn = document.getElementById('cancelCouponBtn');
+			const couponInput = document.getElementById('coupon_code_input');
+			const msgDiv = document.getElementById('coupon_message');
+
+			// A. NÚT ÁP DỤNG MÃ
+			applyCouponBtn.addEventListener('click', function() {
+				const code = couponInput.value;
+				
+				// Lấy tổng tiền hiện tại để kiểm tra điều kiện mã
 				const subTotalText = document.getElementById('sub_total').textContent.replace(/\./g, '').replace(/,/g, '');
 				const currentTotal = parseFloat(subTotalText) || 0;
 
@@ -490,29 +496,59 @@
 				formData.append('code', code);
 				formData.append('order_total', currentTotal);
 
+				// Hiển thị trạng thái đang load
+				applyCouponBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>...';
+
 				fetch("{{ url_for('check_coupon') }}", { method: 'POST', body: formData })
 				.then(res => res.json())
 				.then(data => {
-					const msgDiv = document.getElementById('coupon_message');
 					if (data.valid) {
-						msgDiv.className = 'small mt-1 text-success';
-						msgDiv.textContent = data.message;
+						msgDiv.className = 'small mt-1 text-success fw-bold';
+						msgDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
 						
-						// Cập nhật biến toàn cục & Input ẩn
+						// 1. Cập nhật biến toàn cục & Input ẩn
 						currentDiscount = data.discount_amount;
 						document.getElementById('final_coupon_code').value = data.code;
 						
-						// Tính lại tổng tiền
+						// 2. Đổi giao diện: Khóa ô nhập, ẩn nút Áp dụng, hiện nút Hủy
+						couponInput.readOnly = true;
+						applyCouponBtn.style.display = 'none';
+						cancelCouponBtn.style.display = 'block';
+						
+						// 3. Tính lại tổng tiền
 						updateCalculations();
 					} else {
 						msgDiv.className = 'small mt-1 text-danger';
-						msgDiv.textContent = data.message;
+						msgDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.message}`;
 						currentDiscount = 0;
 						document.getElementById('final_coupon_code').value = '';
 						updateCalculations();
 					}
+				})
+				.finally(() => {
+					applyCouponBtn.textContent = 'Áp dụng'; // Trả lại text cho nút
 				});
 			});
+
+			// B. NÚT HỦY MÃ
+			cancelCouponBtn.addEventListener('click', function() {
+				// 1. Reset lại biến và Input ẩn
+				currentDiscount = 0;
+				document.getElementById('final_coupon_code').value = '';
+				
+				// 2. Trả lại giao diện ban đầu
+				couponInput.value = '';
+				couponInput.readOnly = false;
+				msgDiv.textContent = '';
+				
+				// 3. Ẩn nút Hủy, hiện lại nút Áp dụng
+				cancelCouponBtn.style.display = 'none';
+				applyCouponBtn.style.display = 'block';
+				
+				// 4. Tính lại tổng tiền (Bây giờ currentDiscount = 0 nên sẽ tự hủy giảm giá)
+				updateCalculations();
+			});
+			// === KẾT THÚC XỬ LÝ MÃ GIẢM GIÁ ===
             
             // Gắn "tai nghe" cho nút "Thêm Dịch vụ"
             addBtn.addEventListener('click', addNewServiceRow);
@@ -881,8 +917,53 @@
 				});
 
 				lblOutsourceCost.textContent = totalCost.toLocaleString('vi-VN') + ' đ';
+				
+				// 🟢 THÊM DÒNG NÀY: Cập nhật luôn giá trị vào ô input ẩn (để gửi về Python)
+                const hiddenBaseCost = document.getElementById('outsource_base_cost_input');
+                if(hiddenBaseCost) hiddenBaseCost.value = totalCost;
 			}
 		});
 		// === KẾT THÚC CODE XỬ LÝ GIA CÔNG NGOÀI ===
+		
+		// === GOM DỮ LIỆU GIA CÔNG TRƯỚC KHI SUBMIT FORM ===
+			const orderForm = document.querySelector('form[action*="submit_order"]');
+			if(orderForm) {
+				orderForm.addEventListener('submit', function(e) {
+					if (document.getElementById('is_outsourced').checked) {
+						let outsourceArr = [];
+						
+						// Duyệt qua từng dòng gia công
+						document.querySelectorAll('.outsource-row').forEach(row => {
+							const cat = row.querySelector('.outsource-cat-select').value;
+							const item = row.querySelector('.outsource-item-select').value;
+							const qty = parseFloat(row.querySelector('.outsource-qty').value) || 0;
+							const isFirst = row.querySelector('.first-page-fee').checked;
+							
+							// Tính lại thành tiền và đơn giá
+							const totalStr = row.querySelector('.row-total').textContent.replace(/\./g, '').replace(' đ', '').trim();
+							const total = parseFloat(totalStr) || 0;
+							let unitPrice = 0;
+							if(qty > 0) {
+								unitPrice = isFirst ? (total - 10000)/qty : total/qty;
+							}
+
+							// Đưa vào mảng
+							if(cat && item && qty > 0) {
+								outsourceArr.push({
+									category_name: cat, item_name: item,
+									quantity: qty, unit_price: unitPrice,
+									total_price: total, is_first_page_fee: isFirst
+								});
+							}
+						});
+						
+						// Đóng gói thành JSON và nhét vào ô input ẩn
+						document.getElementById('outsource_data_input').value = JSON.stringify(outsourceArr);
+						
+						const baseCostStr = document.getElementById('lbl_outsource_cost').textContent.replace(/\./g, '').replace(' đ', '').trim();
+						document.getElementById('outsource_base_cost_input').value = parseFloat(baseCostStr) || 0;
+					}
+				});
+			}
     </script>	
 {% endblock %}
