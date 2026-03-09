@@ -1148,7 +1148,13 @@ def order_detail_page(order_id):
     order = cursor.fetchone()
     
     # 1. Lấy dịch vụ in tại nhà
-    cursor.execute("SELECT * FROM Order_Items WHERE order_id = %s", (order_id,))
+    # VÀ THAY BẰNG ĐOẠN CÓ LỆNH JOIN NÀY:
+    cursor.execute("""
+        SELECT oi.*, s.service_name, s.unit 
+        FROM Order_Items oi
+        LEFT JOIN Services s ON oi.service_id = s.service_id
+        WHERE oi.order_id = %s
+    """, (order_id,))
     order_items = cursor.fetchall()
     
     # 2. Lấy chi tiết Dịch vụ Gia công ngoài (Nếu có)
@@ -2318,8 +2324,8 @@ def submit_import_slip():
                 current_avg_cost = float(material['avg_cost_per_base_unit'] or 0)
                 
                 # Quy đổi ra Đơn vị Cơ sở (Base Unit)
-                qty_base = qty_import_unit * conversion_factor
-                price_base = price_import_unit / conversion_factor if conversion_factor else 0
+                qty_base = float(qty_import_unit) * float(conversion_factor)
+                price_base = float(price_import_unit) / float(conversion_factor) if conversion_factor else 0
                 
                 # Công thức Bình quân gia quyền
                 old_value = current_stock_base * current_avg_cost
@@ -3173,42 +3179,36 @@ def ajax_add_service():
 @requires_permission('sale', 'inventory')
 def ajax_add_material():
     conn = get_db_connection()
-    cur = conn.cursor()
-    
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        name = request.form['material_name']
-        base_unit = request.form['base_unit']
-        import_unit = request.form['import_unit']
-        # Lưu ý: Database Postgres dùng cột 'import_conversion_factor'
-        conversion_factor = float(request.form['import_conversion_factor'])
+        # 1. Hứng đúng tên biến từ FormData trong HTML của bạn gửi lên
+        material_name = request.form.get('material_name')
+        base_unit = request.form.get('base_unit')
+        import_unit = request.form.get('import_unit')
+        factor = float(request.form.get('import_conversion_factor') or 1)
         
-        # POSTGRES: RETURNING material_id
+        # 2. INSERT vào đúng các cột có thực trong bảng Materials
         sql = """
-            INSERT INTO Materials (material_name, material_type, base_unit, import_unit, 
-                                   import_conversion_factor, stock_quantity) 
-            VALUES (%s, 'production', %s, %s, %s, 0)
-            RETURNING material_id
+            INSERT INTO Materials (material_name, base_unit, import_unit, import_conversion_factor, is_active) 
+            VALUES (%s, %s, %s, %s, TRUE) RETURNING material_id
         """
-        cur.execute(sql, (name, base_unit, import_unit, conversion_factor))
-        new_id = cur.fetchone()[0]
-        
-        # log_system_action(cur, 'QUICK ADD', 'Materials', f"Thêm nhanh VT ID {new_id}")
-        
+        cursor.execute(sql, (material_name, base_unit, import_unit, factor))
+        new_id = cursor.fetchone()['material_id']
         conn.commit()
         
+        # 3. Trả kết quả JSON về cho Javascript
         return jsonify({
-            'success': True,
-            'new_id': new_id,
-            'new_name': name,
-            'new_import_unit': import_unit
+            'success': True, 
+            'new_id': new_id, 
+            'new_name': material_name,
+            'new_import_unit': import_unit # Phục vụ nếu Javascript cần
         })
-        
     except Exception as e:
         conn.rollback()
-        print(f"Lỗi AJAX Material: {e}")
+        print(f"🔴 Lỗi ajax_add_material: {e}")
         return jsonify({'success': False, 'error': str(e)})
     finally:
-        cur.close()
+        cursor.close()
         conn.close()
 
 # 4. AJAX - Thêm nhanh Nhà cung cấp (Dùng trong trang Nhập kho/Thiết bị)

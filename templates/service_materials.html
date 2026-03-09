@@ -101,7 +101,7 @@
                         <tfoot class="table-group-divider fw-bold bg-light">
                             <tr>
                                 <td colspan="2" class="text-end">Lợi nhuận Gộp:</td>
-                                <td class="text-end text-success">{{ (data.selling_price - data.total_cost)|currency }}</td>
+                                <td class="text-end text-success">{{ (data.selling_price|float - data.total_cost|float)|currency }}</td>
                                 <td></td>
                             </tr>
                         </tfoot>
