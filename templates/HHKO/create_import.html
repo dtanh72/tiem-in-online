@@ -35,6 +35,11 @@
                     <div class="fs-4 fw-bold text-danger" id="grand_total">0</div>
                     <small>vnđ</small>
                 </div>
+				
+				<div class="col-12 mt-3 border-top pt-3">
+                    <label class="form-label fw-bold">Ghi chú phiếu nhập:</label>
+                    <input type="text" name="notes" class="form-control" placeholder="Ví dụ: Nhập gấp đơn hàng VIP, nợ chứng từ đi kèm...">
+                </div>
             </div>
 
             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -85,7 +90,7 @@
                 <input type="number" name="quantity[]" class="form-control qty-input" value="1" min="1" oninput="calcTotal()">
             </td>
             <td>
-                <input type="number" name="unit_price[]" class="form-control price-input" value="0" oninput="calcTotal()">
+                <input type="number" name="unit_price[]" class="form-control price-input" value="0" min="0" step="any" oninput="calcTotal()">
             </td>
             <td>
                 <input type="text" class="form-control line-total text-end" readonly style="font-weight: bold;">
@@ -164,6 +169,80 @@
 			</div>
 		</div>
 	</div>
+
+	<hr class="my-5">
+    
+    <div class="card shadow-sm mb-5 border-info">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="fas fa-history"></i> Lịch sử Phiếu Nhập Kho</h4>
+        </div>
+        <div class="card-body bg-light">
+            
+            <form method="GET" class="row mb-4 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-muted small">Lọc theo Ngày nhập:</label>
+                    <input type="date" name="filter_date" class="form-control" value="{{ request.args.get('filter_date', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-muted small">Lọc theo Nhà cung cấp:</label>
+                    <select name="filter_supplier" class="form-select">
+                        <option value="">-- Tất cả Nhà cung cấp --</option>
+                        {% for s in suppliers_list %}
+                            <option value="{{ s.supplier_id }}" {% if request.args.get('filter_supplier') == s.supplier_id|string %}selected{% endif %}>
+                                {{ s.supplier_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <button type="submit" class="btn btn-primary fw-bold"><i class="fas fa-filter"></i> Lọc dữ liệu</button>
+                    <a href="{{ request.path }}" class="btn btn-outline-secondary fw-bold"><i class="fas fa-sync"></i> Bỏ lọc</a>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered bg-white mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="text-center">Mã Phiếu</th>
+                            <th>Ngày Nhập</th>
+                            <th>Nhà cung cấp</th>
+                            <th class="text-end">Tổng Tiền</th>
+                            <th class="text-center">Thanh toán</th>
+                            <th class="text-center">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for slip in import_slips_list %}
+                        <tr>
+                            <td class="text-center fw-bold">#{{ slip.import_id }}</td>
+                            <td>{{ slip.import_date }}</td>
+                            <td>{{ slip.supplier_name or slip.notes or 'N/A' }}</td>
+                            <td class="text-end text-danger fw-bold">{{ "{:,.0f}".format(slip.total_amount) }} đ</td>
+                            <td class="text-center">
+                                {% if slip.payment_status == 'paid' %}
+                                    <span class="badge bg-success">Đã trả</span>
+                                {% else %}
+                                    <span class="badge bg-warning text-dark">Ghi nợ</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <a href="{{ url_for('view_import_slip', import_id=slip.import_id) }}" class="btn btn-sm btn-info text-white fw-bold">
+                                    <i class="fas fa-eye"></i> Xem / Sửa
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">Chưa có phiếu nhập nào hoặc không tìm thấy kết quả phù hợp.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
 
     <script>
         // 1. HÀM TÍNH TOÁN (QUAN TRỌNG)

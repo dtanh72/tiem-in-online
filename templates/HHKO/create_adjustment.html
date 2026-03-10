@@ -27,11 +27,12 @@
             <table class="table table-bordered table-hover">
                 <thead class="table-dark">
                     <tr>
-                        <th style="width: 35%;">Vật tư</th>
+                        <th style="width: 25%;">Vật tư</th>
                         <th style="width: 10%;">ĐV tính</th>
                         <th style="width: 10%;">Tồn hiện tại</th>
                         <th style="width: 15%;">Số lượng (+/-)</th>
-                        <th style="width: 25%;">Lý do điều chỉnh</th>
+                        <th style="width: 15%;">Giá vốn (vnđ)</th> 
+						<th style="width: 20%;">Lý do điều chỉnh</th>
                         <th style="width: 5%;">Xóa</th>
                     </tr>
                 </thead>
@@ -45,31 +46,104 @@
         <tr id="row_template">
             <td>
                 <select name="material_id[]" class="form-select material-select" required onchange="updateInfo(this)">
-                    <option value="" data-unit="" data-stock="">-- Chọn vật tư --</option>
+                    <option value="" data-base="" data-import="" data-cost="">-- Chọn vật tư --</option>
                     {% for m in materials_list %}
-                        <option value="{{ m.material_id }}" data-unit="{{ m.base_unit }}" data-stock="{{ m.stock_quantity }}">
+                        <option value="{{ m.material_id }}" 
+                                data-base="{{ m.base_unit }}" 
+                                data-import="{{ m.import_unit }}"
+                                data-stock="{{ m.stock_quantity or 0 }}" 
+                                data-cost="{{ m.cost_price or 0 }}">
                             {{ m.material_name }}
                         </option>
                     {% endfor %}
                 </select>
             </td>
             <td>
-                <input type="text" class="form-control unit-display text-center" readonly style="background: #eee;">
+                <select name="unit_type[]" class="form-select unit-select" required>
+                    <option value="base">...</option>
+                </select>
             </td>
             <td>
                 <input type="text" class="form-control stock-display text-center" readonly style="background: #eee; font-weight: bold;">
             </td>
             <td>
-                <input type="number" name="quantity_adjusted[]" class="form-control" placeholder="-10" required>
+                <input type="number" step="any" name="quantity_adjusted[]" class="form-control" placeholder="-10" required>
+            </td>
+            <td>
+                <input type="number" step="any" name="unit_cost[]" class="form-control cost-input" placeholder="0" min="0" required>
             </td>
             <td>
                 <input type="text" name="reason[]" class="form-control" placeholder="VD: Hư hỏng, Kẹt giấy..." required>
             </td>
-            <td>
-                <button type="button" class="btn btn-danger btn-sm" onclick="deleteRow(this)">X</button>
+			<td class="text-center align-middle">
+                <button type="button" class="btn btn-danger btn-sm fw-bold" onclick="deleteRow(this)">X</button>
             </td>
         </tr>
     </table>
+	
+	<hr class="my-5">
+    
+    <div class="card shadow-sm mb-5 border-danger">
+        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+            <h4 class="mb-0"><i class="fas fa-history"></i> Lịch sử Phiếu Điều Chỉnh / Xuất Hủy</h4>
+        </div>
+        <div class="card-body bg-light">
+            
+            <form method="GET" class="row mb-4 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label fw-bold text-muted small">Lọc theo Ngày:</label>
+                    <input type="date" name="filter_date" class="form-control" value="{{ request.args.get('filter_date', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-muted small">Lọc theo Vật tư:</label>
+                    <select name="filter_material" class="form-select">
+                        <option value="">-- Tất cả Vật tư --</option>
+                        {% for m in materials_list %}
+                            <option value="{{ m.material_id }}" {% if request.args.get('filter_material') == m.material_id|string %}selected{% endif %}>
+                                {{ m.material_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <button type="submit" class="btn btn-primary fw-bold"><i class="fas fa-filter"></i> Lọc dữ liệu</button>
+                    <a href="{{ request.path }}" class="btn btn-outline-secondary fw-bold"><i class="fas fa-sync"></i> Bỏ lọc</a>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered bg-white mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th class="text-center">Mã Phiếu</th>
+                            <th>Ngày Điều Chỉnh</th>
+                            <th>Tóm tắt Vật tư điều chỉnh</th>
+                            <th class="text-center">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for slip in adjustment_slips_list %}
+                        <tr>
+                            <td class="text-center fw-bold text-danger">#{{ slip.id }}</td>
+                            <td>{{ slip.adjustment_date }}</td>
+                            <td>{{ slip.materials_summary or 'Không có chi tiết' }}</td>
+                            <td class="text-center">
+                                <a href="{{ url_for('view_adjustment_slip', id=slip.id) }}" class="btn btn-sm btn-info text-white fw-bold">
+                                    <i class="fas fa-eye"></i> Xem / Sửa
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-4">Chưa có phiếu điều chỉnh nào hoặc không tìm thấy kết quả phù hợp.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
 
     <script>
         // 1. Hàm thêm dòng
@@ -85,15 +159,40 @@
             btn.closest('tr').remove();
         }
 
-        // 3. Hàm cập nhật thông tin (Đơn vị & Tồn kho) khi chọn vật tư
+        // 3. Hàm cập nhật thông tin (Đơn vị, Tồn kho & Giá vốn) khi chọn vật tư
         window.updateInfo = function(select) {
             const option = select.options[select.selectedIndex];
-            const unit = option.getAttribute('data-unit');
-            const stock = option.getAttribute('data-stock');
+            const baseUnit = option.getAttribute('data-base');
+            const importUnit = option.getAttribute('data-import');
+            const cost = option.getAttribute('data-cost'); 
+            const stock = option.getAttribute('data-stock'); // 🟢 Lấy tồn kho
             
             const row = select.closest('tr');
-            row.querySelector('.unit-display').value = unit || '...';
-            row.querySelector('.stock-display').value = stock || '...';
+            const unitSelect = row.querySelector('.unit-select');
+            
+            // Làm sạch dropdown đơn vị cũ
+            unitSelect.innerHTML = '';
+            
+            // Thêm Đơn vị cơ sở (Luôn có)
+            if (baseUnit) {
+                unitSelect.add(new Option(baseUnit + " (Cơ sở)", "base"));
+            }
+            // Thêm Đơn vị nhập (Nếu vật tư đó có cài đặt)
+            if (importUnit && importUnit !== 'None' && importUnit !== '') {
+                unitSelect.add(new Option(importUnit + " (Quy đổi)", "import"));
+            }
+            
+            // Tự động điền giá vốn hiện tại
+            const costInput = row.querySelector('.cost-input');
+            if(costInput && cost) {
+                costInput.value = parseFloat(cost);
+            }
+
+            // 🟢 Tự động hiển thị tồn kho hiện tại
+            const stockDisplay = row.querySelector('.stock-display');
+            if(stockDisplay) {
+                stockDisplay.value = stock ? parseFloat(stock) : 0;
+            }
         }
 
         // Thêm 1 dòng mặc định

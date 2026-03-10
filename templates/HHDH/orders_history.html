@@ -38,12 +38,19 @@
 		</div>
 		
 		<h2 class="total-due">
-			Tổng công nợ (còn thiếu): {{ total_due|currency }} vnđ
+			Tổng công nợ (cần thu): {{ total_due|currency }} vnđ
 		</h2>
 	</div>
+	
+	<div class="d-flex justify-content-between align-items-center mb-2">
+        <h3 class="m-0">Danh sách đơn hàng</h3>
+        <button id="toggleCancelledBtn" class="btn btn-secondary btn-sm fw-bold">
+            <i class="fas fa-eye"></i> Hiện đơn đã hủy
+        </button>
+    </div>
 
-    <table class="table table-striped table-hover">
-        <thead>
+    <table class="table table-striped table-hover table-bordered">
+        <thead class="table-dark">
             <tr>
                 <th>Mã ĐH</th>
                 <th>Ngày đặt</th>
@@ -58,23 +65,35 @@
         </thead>
         <tbody>
             {% for order in orders_list %}
-            <tr>
-                <td>{{ order.order_id }}</td>
+            <tr class="{% if order.status == 'cancelled' %}cancelled-row text-muted{% endif %}"
+                {% if order.status == 'cancelled' %}style="display: none;"{% endif %}>
+                <td class="fw-bold">#{{ order.order_id }}</td>
                 <td>{{ order.order_date }}</td>
                 <td>{{ order.customer_name }}</td>
                 <td>{{ order.total_amount|currency }}</td>
                 <td>{{ order.amount_paid|currency }}</td>
                 <td style="color: red; font-weight: bold;">{{ order.amount_due|currency }}</td>
-                <td>{{ order.payment_status }}</td>
-				<td>{{ order.delivery_status }}</td>
+                <td>
+                    {% if order.payment_status == 'paid' %}<span class="badge bg-success">Đã trả đủ</span>
+					{% elif order.payment_status == 'partially_paid' %}<span class="badge bg-info">Đã cọc</span>
+                    {% else %}<span class="badge text-danger">Chưa thanh toán</span>
+                    {% endif %}
+                </td>
+				<td>
+                    {% if order.delivery_status == 'delivered' %}<span class="badge bg-info text-dark">Đã giao</span>
+                    {% else %}<span class="badge text-warning">Chờ giao</span>
+                    {% endif %}
+                </td>
                 <td>
                     <a href="{{ url_for('order_detail_page', order_id=order.order_id) }}" class="btn btn-sm btn-warning">Xem</a>
-					{% if order.status == 'processing' %}
+					
+                    {% if order.status == 'processing' and order.delivery_status != 'delivered' %}
 						<form action="{{ url_for('cancel_order', order_id=order.order_id) }}" method="POST" style="display:inline;"
 							  onsubmit="return confirm('CẢNH BÁO: Hủy đơn hàng sẽ HOÀN LẠI vật tư vào kho. Bạn có chắc chắn?');">
 							<button type="submit" class="btn btn-sm btn-danger">Hủy</button>
 						</form>
 					{% endif %}
+
 					{% if order.status == 'cancelled' %}
 						<span class="badge bg-secondary">Đã hủy</span>
 					{% endif %}
@@ -83,5 +102,31 @@
             {% endfor %}
         </tbody>
     </table>
+	
+	<script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const toggleBtn = document.getElementById("toggleCancelledBtn");
+            const cancelledRows = document.querySelectorAll(".cancelled-row");
+            let isHidden = true; // Trạng thái mặc định là ĐÃ ẨN
+
+            toggleBtn.addEventListener("click", function() {
+                isHidden = !isHidden; // Đảo ngược trạng thái
+                
+                // Duyệt qua tất cả các dòng bị hủy và bật/tắt hiển thị
+                cancelledRows.forEach(row => {
+                    row.style.display = isHidden ? "none" : "";
+                });
+                
+                // Đổi chữ và màu sắc của nút cho phù hợp
+                if (isHidden) {
+                    toggleBtn.innerHTML = '<i class="fas fa-eye"></i> Hiện đơn đã hủy';
+                    toggleBtn.classList.replace('btn-outline-secondary', 'btn-secondary');
+                } else {
+                    toggleBtn.innerHTML = '<i class="fas fa-eye-slash"></i> Ẩn đơn đã hủy';
+                    toggleBtn.classList.replace('btn-secondary', 'btn-outline-secondary');
+                }
+            });
+        });
+    </script>
 
 {% endblock %}

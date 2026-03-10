@@ -1,0 +1,189 @@
+{% extends 'UI/base.html' %}
+{% block title %}Chi tiết Phiếu Nhập #{{ slip.import_id }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('create_import_page') }}" class="btn btn-outline-secondary me-3 fw-bold">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+            <h2 class="mb-0"><i class="fas fa-file-invoice"></i> Phiếu Nhập Kho #{{ slip.import_id }}</h2>
+        </div>
+        <div>
+            <button type="button" class="btn btn-warning fw-bold shadow-sm" id="btnEditMode">
+                <i class="fas fa-edit"></i> Chỉnh sửa phiếu
+            </button>
+        </div>
+    </div>
+
+    <form action="{{ url_for('update_import_slip', import_id=slip.import_id) }}" method="POST" id="importForm">
+        
+        <div class="card shadow-sm mb-4">
+            <div class="card-body bg-light">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="fw-bold">Ngày nhập:</label>
+                        <input type="date" name="import_date" class="form-control form-control-plaintext edit-field" 
+                               value="{{ slip.import_date.strftime('%Y-%m-%d') if slip.import_date else '' }}" readonly required>
+                    </div>
+                    <div class="col-md-8 mb-3">
+                        <label class="fw-bold">Ghi chú / Tên NCC:</label>
+                        <input type="text" name="notes" class="form-control form-control-plaintext edit-field" 
+                               value="{{ slip.notes }}" readonly>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Danh sách Vật tư</h5>
+                <button type="button" class="btn btn-sm btn-success" id="btnAddRow" style="display: none;">+ Thêm dòng</button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered table-hover mb-0" id="importTable">
+					<thead class="table-dark">
+						<tr>
+							<th style="width: 35%;">Vật tư</th>
+							<th style="width: 10%;">Đơn vị</th>
+							<th style="width: 15%;">Số lượng</th>
+							<th style="width: 20%;">Giá nhập (vnđ)</th>
+							<th style="width: 15%;">Thành tiền</th>
+							<th style="width: 10%; display: none;" class="text-center action-col">Xóa</th>
+						</tr>
+					</thead>
+                    <tbody id="import_items_body">
+                        {% for item in items %}
+                        <tr class="item-row">
+                            <td>
+                                <select name="material_id[]" class="form-select edit-field material-select" disabled required>
+                                    <option value="{{ item.material_id }}">{{ item.material_name }}</option>
+                                    {% for m in materials_list %}
+                                        {% if m.material_id != item.material_id %}
+                                            <option value="{{ m.material_id }}">{{ m.material_name }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </td>
+							 <td>
+								<input type="text" class="form-control unit-display text-center" 
+										value="{{ item.base_unit }}"	readonly style="background: #eee;">
+							</td>
+                            <td>
+                                <input type="number" name="quantity[]" class="form-control edit-field calc-field" 
+                                       value="{{ item.quantity }}" min="0.01" step="0.01" readonly required>
+                            </td>
+                            <td>
+                                <input type="number" name="unit_price[]" class="form-control edit-field calc-field" 
+                                       value="{{ '{:.0f}'.format(item.unit_price) }}" min="0" readonly required>
+                            </td>
+                            <td>
+                                <input type="text" class="form-control line-total" 
+                                       value="{{ '{:,.0f}'.format(item.line_total) }} đ" readonly style="background: #e9ecef;">
+                            </td>
+                            <td class="text-center action-col" style="display: none;">
+                                <button type="button" class="btn btn-danger btn-sm btn-remove-row">X</button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="bg-light fw-bold">
+                        <tr>
+                            <td colspan="3" class="text-end text-danger fs-5">TỔNG CỘNG:</td>
+                            <td colspan="2" class="text-danger fs-5" id="grand_total">{{ "{:,.0f}".format(slip.total_amount) }} đ</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="text-end mt-4" id="saveSection" style="display: none;">
+            <button type="button" class="btn btn-secondary me-2" onclick="location.reload();">Hủy bỏ</button>
+            <button type="submit" class="btn btn-primary btn-lg" onclick="return confirm('Hệ thống sẽ tính toán lại tồn kho. Bạn chắc chắn muốn Lưu?');">
+                <i class="fas fa-save"></i> LƯU CHỈNH SỬA
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const btnEditMode = document.getElementById('btnEditMode');
+        const saveSection = document.getElementById('saveSection');
+        const btnAddRow = document.getElementById('btnAddRow');
+        const actionCols = document.querySelectorAll('.action-col');
+        const tableBody = document.getElementById('import_items_body');
+
+        // 1. BẬT CHẾ ĐỘ CHỈNH SỬA
+        btnEditMode.addEventListener('click', function() {
+            // Đổi giao diện input từ chỉ xem (plaintext) thành có viền để nhập
+            document.querySelectorAll('.edit-field').forEach(el => {
+                el.removeAttribute('readonly');
+                el.removeAttribute('disabled');
+                el.classList.remove('form-control-plaintext');
+            });
+            
+            // Hiện các nút công cụ
+            saveSection.style.display = 'block';
+            btnAddRow.style.display = 'block';
+            btnEditMode.style.display = 'none'; // Ẩn nút "Chỉnh sửa" đi
+            
+            // Hiện cột Xóa
+            actionCols.forEach(col => col.style.display = 'table-cell');
+        });
+
+        // 2. TÍNH TOÁN LẠI TỔNG TIỀN KHI GÕ
+        function calculateTotal() {
+            let grandTotal = 0;
+            document.querySelectorAll('.item-row').forEach(row => {
+                const qty = parseFloat(row.querySelector('input[name="quantity[]"]').value) || 0;
+                const price = parseFloat(row.querySelector('input[name="unit_price[]"]').value) || 0;
+                const lineTotal = qty * price;
+                
+                row.querySelector('.line-total').value = lineTotal.toLocaleString('vi-VN') + ' đ';
+                grandTotal += lineTotal;
+            });
+            document.getElementById('grand_total').textContent = grandTotal.toLocaleString('vi-VN') + ' đ';
+        }
+
+        // Bắt sự kiện gõ phím vào các ô số lượng và đơn giá
+        tableBody.addEventListener('input', function(e) {
+            if (e.target.classList.contains('calc-field')) {
+                calculateTotal();
+            }
+        });
+
+        // 3. XÓA DÒNG
+        tableBody.addEventListener('click', function(e) {
+            if (e.target.classList.contains('btn-remove-row')) {
+                e.target.closest('tr').remove();
+                calculateTotal();
+            }
+        });
+		
+		// 4. Hàm hiển thị đơn vị
+        window.updateUnitDisplay = function(select) {
+            const unit = select.options[select.selectedIndex].getAttribute('data-unit');
+            const row = select.closest('tr');
+            row.querySelector('.unit-display').value = unit || '...';
+        }
+
+        // 4. THÊM DÒNG MỚI
+        btnAddRow.addEventListener('click', function() {
+            // Copy dòng đầu tiên làm mẫu (hoặc tạo html string nếu muốn)
+            const firstRow = document.querySelector('.item-row');
+            if(firstRow) {
+                const newRow = firstRow.cloneNode(true);
+                // Reset giá trị
+                newRow.querySelector('input[name="quantity[]"]').value = '1';
+                newRow.querySelector('input[name="unit_price[]"]').value = '0';
+                newRow.querySelector('.line-total').value = '0 đ';
+                
+                tableBody.appendChild(newRow);
+                calculateTotal();
+            }
+        });
+    });
+</script>
+{% endblock %}

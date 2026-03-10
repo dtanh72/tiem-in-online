@@ -47,17 +47,15 @@
 						<td>{{ order.amount_paid|currency }} vnđ</td>
 					</tr>
 					<tr>
-							{% set amount_due = order.total_amount - order.amount_paid %}
-							<p style="font-size: 1.2em; font-weight: bold; {% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
-								<th>Còn Nợ:</th>														
-								<td style="{% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
-									{% if amount_due > 0 %}
-										{{ amount_due|currency }} vnđ
-									{% else %}
-										Đã thanh toán đủ
-									{% endif %}							
-								</td>
-							</p>
+						{% set amount_due = order.total_amount - order.amount_paid %}
+						<th style="font-size: 1.2em; font-weight: bold; {% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">Còn Nợ:</th>														
+						<td style="font-size: 1.2em; font-weight: bold; {% if amount_due > 0 %}color: red;{% else %}color: green;{% endif %}">
+							{% if amount_due > 0 %}
+								{{ amount_due|currency }} vnđ
+							{% else %}
+								Đã thanh toán đủ
+							{% endif %}							
+						</td>
 					</tr>
 					<tr>
 						<th><strong>Trạng thái Giao hàng:</strong></th>
@@ -104,7 +102,7 @@
                 <p>Trạng thái hiện tại: <strong>{{ order.delivery_status }}</strong></p>
                 <select name="delivery_status" class="form-control">
                     <option value="pending" {% if order.delivery_status == 'pending' %}selected{% endif %}>Chưa giao</option>
-                    <option value="delivered" {% if order.delivery_status == 'delivered' %}selected{% endif %}>Đã giao</g option>
+                    <option value="delivered" {% if order.delivery_status == 'delivered' %}selected{% endif %}>Đã giao<option>
                 </select>
                 <button type="submit" 
 				        style="margin-top: 15px; padding: 10px; background: #007bff; color: white; border: none;"
@@ -118,33 +116,59 @@
         </div>
 
     <h2>Các dịch vụ đã đặt</h2>
-    <table class="table table-striped table-hover">
-        <thead>
+    <table class="table table-striped table-hover table-bordered">
+        <thead class="table-dark">
             <tr>
                 <th>Tên Dịch vụ</th>
                 <th>Số lượng</th>
                 <th>Đơn vị</th>
                 <th>Đơn giá</th>
                 <th>Thành tiền</th>
-				<th>Giá vốn (Ước tính)</th> 
-				<th>Lợi nhuận (Ước tính)</th>
+                <th>Giá vốn (Ước tính)</th> 
+                <th>Lợi nhuận (Ước tính)</th>
             </tr>
         </thead>
         <tbody>
+            {% set ns = namespace(total_internal_cost=0) %}
+            
             {% for item in order_items %}
-            <tr>
-                <td>{{ item.service_name }}</td>
-                <td>{{ item.quantity }}</td>
-                <td>{{ item.unit }}</td>
-                <td>{{ item.unit_price|currency }}</td>
-                <td>{{ item.line_total|currency }}</td>
-				<td>{{ item.cost_of_goods|currency }}</td> 
-				<td style="font-weight: bold; color: green;">{{ item.profit|currency }}</td>
-            </tr>
+                {% set ns.total_internal_cost = ns.total_internal_cost + (item.cost_of_goods or 0) %}
+                <tr>
+                    <td>{{ item.service_name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>{{ item.unit }}</td>
+                    <td>{{ item.unit_price|currency }}</td>
+                    <td>{{ item.line_total|currency }}</td>
+                    
+                    {% if order.is_outsourced %}
+                        <td class="text-muted" style="font-style: italic;">Tính theo lô GC</td>
+                        <td class="text-muted">-</td>
+                    {% else %}
+                    <td>{{ item.cost_of_goods|currency }}</td> 
+                        <td style="font-weight: bold; color: green;">{{ item.profit|currency }}</td>
+                    {% endif %}
+                </tr>
             {% endfor %}
-            <tr >
-                <td colspan="4" style="text-align: right;">TỔNG CỘNG</td>
-                <td>{{ order.total_amount|currency }}</td>
+            
+            <tr style="background-color: #e9ecef;">
+                <td colspan="4" style="text-align: right; font-weight: bold; font-size: 1.1em;">TỔNG CỘNG:</td>
+                <td style="font-weight: bold; font-size: 1.1em;" class="text-primary">{{ order.total_amount|currency }}</td>
+                
+                {% if order.is_outsourced %}
+                    <td style="font-weight: bold; color: red; font-size: 1.1em;">
+                        {{ (order.outsource_base_cost or 0)|currency }} <br><small class="text-muted fw-normal">(Vốn xưởng)</small>
+                    </td>
+                    <td style="font-weight: bold; color: green; font-size: 1.2em;">
+                        {{ (order.total_amount - (order.outsource_base_cost or 0))|currency }}
+                    </td>
+                {% else %}
+                    <td style="font-weight: bold; color: red; font-size: 1.1em;">
+                        {{ ns.total_internal_cost|currency }} <br><small class="text-muted fw-normal">(Vật tư)</small>
+                    </td>
+                    <td style="font-weight: bold; color: green; font-size: 1.2em;">
+                        {{ (order.total_amount - ns.total_internal_cost)|currency }}
+                    </td>
+                {% endif %}
             </tr>
         </tbody>
     </table>

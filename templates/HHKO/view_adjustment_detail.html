@@ -1,0 +1,70 @@
+{% extends 'UI/base.html' %}
+{% block title %}Chi tiết Phiếu Điều Chỉnh{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex align-items-center">
+            <a href="{{ url_for('create_adjustment_page') }}" class="btn btn-outline-secondary me-3 fw-bold">
+                <i class="fas fa-arrow-left"></i> Quay lại Lịch sử
+            </a>
+            <h2 class="mb-0 text-danger">
+                <i class="fas fa-file-invoice"></i> Chi tiết Phiếu Điều Chỉnh Kho #{{ slip.id }}
+            </h2>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4 border-danger">
+        <div class="card-body bg-light">
+            <div class="row">
+                <div class="col-md-6 text-md-start">
+                    <p class="mb-1 fs-5"><strong>Mã Phiếu:</strong> <span class="text-danger fw-bold">#{{ slip.id }}</span></p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="mb-1 fs-5"><strong>Ngày điều chỉnh:</strong> {{ slip.adjustment_date }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-box-open"></i> Danh sách Vật tư đã điều chỉnh</h5>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover mb-0">
+                <thead class="table-light text-center align-middle">
+                    <tr>
+                        <th style="width: 5%;">STT</th>
+                        <th style="width: 30%;">Tên Vật tư</th>
+                        <th style="width: 10%;">Đơn vị</th>
+                        <th style="width: 15%;">Số lượng (+/-)</th>
+                        <th style="width: 15%;">Giá vốn (vnđ)</th>
+                        <th style="width: 25%;">Lý do / Ghi chú</th>
+                    </tr>
+                </thead>
+                <tbody class="align-middle">
+                    {% for item in items %}
+                    <tr>
+                        <td class="text-center text-muted">{{ loop.index }}</td>
+                        <td class="fw-bold text-primary">{{ item.material_name }}</td>
+                        <td class="text-center">{{ item.base_unit }}</td>
+                        
+                        <td class="text-center fs-5 fw-bold {% if item.quantity_adjusted < 0 %}text-danger{% else %}text-success{% endif %}">
+                            {% if item.quantity_adjusted > 0 %}+{% endif %}{{ item.quantity_adjusted }}
+                        </td>
+                        
+                        <td class="text-end fw-bold text-secondary">
+                            {{ "{:,.0f}".format(item.unit_cost) if item.unit_cost else '0' }} đ
+                        </td>
+                        <td class="text-muted fst-italic">{{ item.reason }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">Không có dữ liệu vật tư cho phiếu này.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

@@ -82,6 +82,8 @@ SUPPLIER_DEBT_REPORT = "HHCC/supplier_debt_report.html"
 NCC_HTML="HHCC/suppliers.html"
 CREATE_IMPORT_HTML = "HHKO/create_import.html"
 CREATE_ADJUSTMENT_INV_HTML = "HHKO/create_adjustment.html"
+IMPORT_DETAIL_HTML = "HHKO/import_slip_detail.html"
+ADJUSTMENT_DETAIL_HTML = "HHKO/view_adjustment_detail.html"
 COUPONS_HTML = "HHKM/coupons.html"
 LOGIN_HTML = "HHBM/login.html"
 MANAGE_USERS_HTML = "HHBM/manage_users.html"
@@ -1237,33 +1239,28 @@ def log_payment(order_id):
 @requires_permission('inventory', 'sale') # Kinh Doanh và Kho
 def update_delivery_status(order_id):
     conn = get_db_connection()
-    cur = conn.cursor()
-    
+    cursor = conn.cursor()
     try:
-        # 1. Kiểm tra trạng thái
-        cur.execute("SELECT status FROM Orders WHERE order_id = %s", (order_id,))
-        result = cur.fetchone() 
+        new_status = request.form.get('delivery_status')
         
-        # Postgres fetchone trả về tuple nếu không dùng RealDictCursor, hoặc Dict nếu dùng.
-        # Ở đây cursor() mặc định là tuple.
-        if not result or result[0] == 'cancelled':
-            return "LỖI: Không thể cập nhật giao hàng cho đơn đã hủy!", 403
-    
-        new_status = request.form['delivery_status']
-        sql = "UPDATE Orders SET delivery_status = %s WHERE order_id = %s"
-        cur.execute(sql, (new_status, order_id))
-        
-        # log_desc = f"Cập nhật giao hàng đơn #{order_id} -> {new_status}"
-        # log_system_action(cur, 'DELIVERY', 'Orders', log_desc)
-        
-        conn.commit()
+        if new_status:
+            cursor.execute("""
+                UPDATE Orders 
+                SET delivery_status = %s 
+                WHERE order_id = %s
+            """, (new_status, order_id))
+            conn.commit()
+            flash('Đã cập nhật trạng thái giao hàng!', 'success')
+            
     except Exception as e:
         conn.rollback()
-        print(f"LỖI KHI CẬP NHẬT GIAO HÀNG: {e}")
+        print(f"🔴 Lỗi cập nhật giao hàng: {e}")
+        flash(f'Lỗi khi cập nhật giao hàng: {e}', 'danger')
     finally:
-        cur.close()
+        cursor.close()
         conn.close()
         
+    # Xử lý xong thì tải lại trang chi tiết đơn hàng đó
     return redirect(url_for('order_detail_page', order_id=order_id))
     
 @app.route('/update_outsource_status', methods=['POST'])
@@ -2237,120 +2234,270 @@ def imports_page():
 @requires_permission('inventory') # KHO
 def create_import_page():
     conn = get_db_connection()
-    # 🟢 SỬA LỖI 1: Thay dictionary=True bằng cursor_factory
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Lấy danh sách NCC (Sửa is_active = 1 thành TRUE)
-    cursor.execute("SELECT supplier_id, supplier_name FROM Suppliers WHERE is_active = TRUE ORDER BY supplier_name")
-    suppliers_list = cursor.fetchall()
-    
-    # Lấy danh sách Vật tư (Sửa is_active = 1 thành TRUE)
-    cursor.execute("SELECT material_id, material_name, import_unit FROM Materials WHERE is_active = TRUE ORDER BY material_name")
-    materials_list = cursor.fetchall()
-    
-    cursor.close()
-    conn.close()
-    
-    # Lấy ngày hôm nay
-    today = datetime.date.today().isoformat()
-    
-    return render_template(CREATE_IMPORT_HTML, 
-                           suppliers_list=suppliers_list, 
-                           materials_list=materials_list,
-                           today=today) # <-- Gửi biến 'today' ra HTML
+    try:
+        # 1. Lấy danh sách Nhà cung cấp (Cho cả dropdown tạo mới và dropdown lọc)
+        cursor.execute("SELECT supplier_id, supplier_name FROM Suppliers WHERE is_active = TRUE ORDER BY supplier_name")
+        suppliers_list = cursor.fetchall()
+        
+        # 2. Lấy danh sách Vật tư (Cho form nhập liệu)
+        cursor.execute("SELECT material_id, material_name, import_unit FROM Materials WHERE is_active = TRUE ORDER BY material_name")
+        materials_list = cursor.fetchall()
+
+        # ==========================================
+        # 3. XỬ LÝ BỘ LỌC TÌM KIẾM PHIẾU NHẬP
+        # ==========================================
+        # Lấy tham số từ thanh địa chỉ (URL) do form GET gửi lên
+        filter_date = request.args.get('filter_date')
+        filter_supplier = request.args.get('filter_supplier')
+        
+        # Câu lệnh SQL cơ bản (JOIN thêm bảng Suppliers để lấy tên NCC hiện ra bảng)
+        query = """
+            SELECT i.*, s.supplier_name 
+            FROM Import_Slips i
+            LEFT JOIN Suppliers s ON i.supplier_id = s.supplier_id
+            WHERE 1=1
+        """
+        params = [] # Danh sách chứa các giá trị điều kiện
+        
+        # Nếu người dùng có chọn lọc theo Ngày
+        if filter_date:
+            query += " AND DATE(i.import_date) = %s"
+            params.append(filter_date)
+            
+        # Nếu người dùng có chọn lọc theo Nhà cung cấp
+        if filter_supplier:
+            query += " AND i.supplier_id = %s"
+            params.append(filter_supplier)
+            
+        # Cuối cùng là sắp xếp: Phiếu nào mới nhập thì nổi lên đầu tiên
+        query += " ORDER BY i.import_date DESC, i.import_id DESC"
+        
+        # Thực thi câu lệnh SQL với các biến đã nối
+        cursor.execute(query, tuple(params))
+        import_slips_list = cursor.fetchall()
+        
+        # Ngày hôm nay để điền sẵn vào form tạo mới
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        
+        return render_template(CREATE_IMPORT_HTML, 
+                               suppliers_list=suppliers_list,
+                               materials_list=materials_list,
+                               import_slips_list=import_slips_list,
+                               today=today)
+                               
+    except Exception as e:
+        print(f"🔴 Lỗi load trang tạo phiếu nhập: {e}")
+        flash(f"Có lỗi xảy ra: {e}", "danger")
+        return redirect(url_for('index')) # Hoặc trang chủ quản trị của bạn
+    finally:
+        cursor.close()
+        conn.close()
 
 # 2. (POST) Xử lý Lưu Phiếu Nhập (Tính giá vốn & Tồn kho)
 @app.route('/submit_import_slip', methods=['POST'])
 @requires_permission('inventory') # KHO
 def submit_import_slip():
     conn = get_db_connection()
-    # 🟢 SỬA LỖI 1: Dùng RealDictCursor
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # 1. LẤY DỮ LIỆU CHUNG TỪ FORM
+        supplier_id = request.form.get('supplier_id')
+        import_date = request.form.get('import_date')
+        payment_status = request.form.get('payment_status')
+        # Lấy ghi chú, nếu không có thì để trống
+        notes = request.form.get('notes', '') 
+
+        # 2. LẤY MẢNG CHI TIẾT VẬT TƯ TỪ GIAO DIỆN
+        material_ids = request.form.getlist('material_id[]')
+        quantities = request.form.getlist('quantity[]')
+        unit_prices = request.form.getlist('unit_price[]')
+
+        total_amount = 0
+        valid_items = []
+
+        # Lọc ra các dòng hợp lệ và tính tổng tiền từ Backend (cho an toàn)
+        for i in range(len(material_ids)):
+            if material_ids[i] and float(quantities[i] or 0) > 0:
+                m_id = material_ids[i]
+                qty = float(quantities[i])
+                price = float(unit_prices[i])
+                line_total = qty * price
+                total_amount += line_total
+                
+                valid_items.append({
+                    'material_id': m_id,
+                    'quantity': qty,
+                    'unit_price': price,
+                    'line_total': line_total
+                })
+
+        # Nếu không có vật tư nào được nhập
+        if not valid_items:
+            flash('Phiếu nhập phải có ít nhất 1 vật tư hợp lệ!', 'danger')
+            return redirect(url_for('create_import'))
+
+        # 3. LƯU VÀO BẢNG IMPORT_SLIPS VÀ LẤY ID VỪA TẠO
+        cursor.execute("""
+            INSERT INTO Import_Slips (supplier_id, import_date, total_amount, payment_status, notes)
+            VALUES (%s, %s, %s, %s, %s) RETURNING import_id
+        """, (supplier_id, import_date, total_amount, payment_status, notes))
+        
+        # Bắt lấy cái ID của phiếu nhập vừa sinh ra
+        new_import_id = cursor.fetchone()['import_id'] 
+
+        # 4. LƯU VÀO BẢNG IMPORT_DETAILS VÀ CỘNG TỒN KHO
+        for item in valid_items:
+            # A. Lưu vào bảng chi tiết
+            cursor.execute("""
+                INSERT INTO Import_Details (import_id, material_id, quantity, unit_price, line_total)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (new_import_id, item['material_id'], item['quantity'], item['unit_price'], item['line_total']))
+
+            # B. Cộng vào Tồn kho (Cực kỳ quan trọng)
+            # Lấy hệ số quy đổi ra để nhân (Ví dụ nhập 1 Ram giấy -> Kho phải cộng 500 tờ)
+            cursor.execute("SELECT import_conversion_factor FROM Materials WHERE material_id = %s", (item['material_id'],))
+            factor_data = cursor.fetchone()
+            
+            # Nếu vật tư chưa có hệ số quy đổi thì mặc định là 1
+            conversion_factor = float(factor_data['import_conversion_factor'] if factor_data and factor_data['import_conversion_factor'] else 1)
+            
+            # Số lượng thực tế cộng vào kho
+            qty_to_add = item['quantity'] * conversion_factor
+
+            # Update kho (COALESCE để phòng trường hợp kho đang là NULL thì đổi thành 0 rồi cộng)
+            cursor.execute("""
+                UPDATE Materials 
+                SET stock_quantity = COALESCE(stock_quantity, 0) + %s 
+                WHERE material_id = %s
+            """, (qty_to_add, item['material_id']))
+
+        # 5. XÁC NHẬN LƯU VÀO DATABASE
+        conn.commit()
+        flash('Đã lưu phiếu nhập kho và cập nhật số lượng tồn thành công!', 'success')
+
+    except Exception as e:
+        conn.rollback() # Nếu có lỗi thì hủy bỏ toàn bộ thao tác nãy giờ
+        print(f"🔴 Lỗi submit_import_slip: {e}")
+        flash(f'Lỗi hệ thống khi lưu phiếu: {e}', 'danger')
+        
+    finally:
+        cursor.close()
+        conn.close()
+
+    # Quay lại trang tạo phiếu
+    return redirect(url_for('create_import_page'))
+
+# ==========================================
+# 1. HÀM XEM CHI TIẾT PHIẾU NHẬP
+# ==========================================
+@app.route('/import_slip/<int:import_id>')
+@requires_permission('admin', 'kho')
+def view_import_slip(import_id):
+    conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    try:
-        # A. Lấy thông tin chung (Header)
-        supplier_id = request.form['supplier_id']
-        import_date = request.form['import_date']
-        payment_status = request.form['payment_status']
-        
-        # B. Lấy danh sách chi tiết (Items)
-        material_ids = request.form.getlist('material_id[]')
-        quantities = request.form.getlist('quantity[]')     # Số lượng (theo ĐV Nhập)
-        unit_prices = request.form.getlist('unit_price[]')  # Giá (theo ĐV Nhập)
-        
-        # Tính tổng tiền phiếu
-        total_amount = 0
-        for i in range(len(material_ids)):
-            # Bỏ qua nếu dòng bị trống dữ liệu
-            if material_ids[i] and quantities[i] and unit_prices[i]:
-                total_amount += int(quantities[i]) * float(unit_prices[i])
-
-        # --- BƯỚC 1: TẠO PHIẾU NHẬP (Import_Slips) ---
-        # 🟢 SỬA LỖI 2: Dùng RETURNING slip_id thay cho lastrowid
-        sql_slip = """
-            INSERT INTO Import_Slips (supplier_id, import_date, total_amount, payment_status)
-            VALUES (%s, %s, %s, %s) RETURNING slip_id
-        """
-        cursor.execute(sql_slip, (supplier_id, import_date, total_amount, payment_status))
-        new_slip_id = cursor.fetchone()['slip_id']
-
-        # --- BƯỚC 2: LẶP QUA TỪNG VẬT TƯ ---
-        for i in range(len(material_ids)):
-            mat_id = material_ids[i]
-            
-            # Kiểm tra an toàn: Bỏ qua nếu form gửi lên mảng trống
-            if not mat_id or not quantities[i] or not unit_prices[i]:
-                continue
-                
-            qty_import_unit = int(quantities[i])
-            price_import_unit = float(unit_prices[i])
-            line_total = qty_import_unit * price_import_unit
-            
-            # 2a. Lưu vào bảng chi tiết (Import_Slip_Items)
-            sql_item = """
-                INSERT INTO Import_Slip_Items (slip_id, material_id, quantity, unit_price, line_total)
-                VALUES (%s, %s, %s, %s, %s)
-            """
-            cursor.execute(sql_item, (new_slip_id, mat_id, qty_import_unit, price_import_unit, line_total))
-            
-            # 2b. TÍNH GIÁ VỐN TRUNG BÌNH & CẬP NHẬT KHO (Logic cũ)
-            cursor.execute("SELECT stock_quantity, import_conversion_factor, avg_cost_per_base_unit FROM Materials WHERE material_id = %s", (mat_id,))
-            material = cursor.fetchone()
-            
-            if material:
-                # Xử lý an toàn nếu Database trả về None
-                current_stock_base = material['stock_quantity'] or 0
-                conversion_factor = material['import_conversion_factor'] or 1.0
-                current_avg_cost = float(material['avg_cost_per_base_unit'] or 0)
-                
-                # Quy đổi ra Đơn vị Cơ sở (Base Unit)
-                qty_base = float(qty_import_unit) * float(conversion_factor)
-                price_base = float(price_import_unit) / float(conversion_factor) if conversion_factor else 0
-                
-                # Công thức Bình quân gia quyền
-                old_value = current_stock_base * current_avg_cost
-                new_value = qty_base * price_base
-                total_stock_new = current_stock_base + qty_base
-                
-                new_avg_cost = (old_value + new_value) / total_stock_new if total_stock_new > 0 else 0
-                
-                # Cập nhật bảng Materials
-                cursor.execute("UPDATE Materials SET stock_quantity = %s, avg_cost_per_base_unit = %s WHERE material_id = %s", 
-                               (total_stock_new, new_avg_cost, mat_id))
-
-        conn.commit()
-        
-    # 🟢 SỬA LỖI 3: Đổi từ mysql.connector.Error sang Exception chuẩn
-    except Exception as err:
-        if 'conn' in locals(): conn.rollback()
-        print(f"🔴 Lỗi SQL Tạo Phiếu Nhập: {err}")
-        return f"Lỗi hệ thống: {err}", 500
-    finally:
-        if 'cursor' in locals(): cursor.close()
-        if 'conn' in locals(): conn.close()
+    # 1. Lấy thông tin chung của phiếu nhập
+    cursor.execute("SELECT * FROM Import_Slips WHERE import_id = %s", (import_id,))
+    slip = cursor.fetchone()
     
-    # Quay về trang kho hoặc trang chi tiết phiếu nhập (nếu làm)
-    return redirect(url_for('materials_page'))
+    if not slip:
+        flash('Không tìm thấy phiếu nhập này!', 'danger')
+        return redirect(url_for('manage_inventory')) # Đổi thành trang danh sách của bạn
+        
+    # 2. Lấy danh sách chi tiết các vật tư trong phiếu
+    cursor.execute("""
+        SELECT id.*, m.material_name, m.base_unit 
+        FROM Import_Details id
+        JOIN Materials m ON id.material_id = m.material_id
+        WHERE id.import_id = %s
+    """, (import_id,))
+    items = cursor.fetchall()
+    
+    # 3. Lấy danh sách vật tư (để hiện trong dropdown nếu bạn muốn thêm dòng mới khi sửa)
+    cursor.execute("SELECT material_id, material_name, base_unit FROM Materials WHERE is_active = TRUE")
+    materials_list = cursor.fetchall()
+    
+    cursor.close()
+    conn.close()
+    
+    return render_template(IMPORT_DETAIL_HTML, slip=slip, items=items, materials_list=materials_list)
+
+# ==========================================
+# 2. HÀM XỬ LÝ LƯU CHỈNH SỬA PHIẾU NHẬP
+# ==========================================
+@app.route('/update_import_slip/<int:import_id>', methods=['POST'])
+@requires_permission('admin', 'kho')
+def update_import_slip(import_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Lấy dữ liệu chung
+        notes = request.form.get('notes')
+        import_date = request.form.get('import_date')
+        
+        # --- BƯỚC QUAN TRỌNG: HOÀN TRẢ LẠI TỒN KHO CŨ ---
+        # Trước khi xóa chi tiết cũ, ta phải trừ đi số lượng đã từng cộng vào kho
+        cursor.execute("SELECT material_id, quantity FROM Import_Details WHERE import_id = %s", (import_id,))
+        old_items = cursor.fetchall()
+        for old in old_items:
+            cursor.execute("""
+                UPDATE Materials 
+                SET stock_quantity = stock_quantity - %s 
+                WHERE material_id = %s
+            """, (old['quantity'], old['material_id']))
+            
+        # Xóa toàn bộ chi tiết cũ trong phiếu
+        cursor.execute("DELETE FROM Import_Details WHERE import_id = %s", (import_id,))
+        
+        # --- LƯU CHI TIẾT MỚI & CỘNG LẠI TỒN KHO ---
+        material_ids = request.form.getlist('material_id[]')
+        quantities = request.form.getlist('quantity[]')
+        prices = request.form.getlist('unit_price[]')
+        
+        total_amount = 0
+        
+        for i in range(len(material_ids)):
+            if material_ids[i] and float(quantities[i] or 0) > 0:
+                m_id = material_ids[i]
+                qty = float(quantities[i])
+                price = float(prices[i])
+                line_total = qty * price
+                total_amount += line_total
+                
+                # Insert dòng mới
+                cursor.execute("""
+                    INSERT INTO Import_Details (import_id, material_id, quantity, unit_price, line_total)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (import_id, m_id, qty, price, line_total))
+                
+                # Cộng tồn kho mới
+                cursor.execute("""
+                    UPDATE Materials 
+                    SET stock_quantity = stock_quantity + %s 
+                    WHERE material_id = %s
+                """, (qty, m_id))
+
+        # Cập nhật lại tổng tiền và ghi chú của phiếu nhập
+        cursor.execute("""
+            UPDATE Import_Slips 
+            SET notes = %s, import_date = %s, total_amount = %s 
+            WHERE import_id = %s
+        """, (notes, import_date, total_amount, import_id))
+        
+        conn.commit()
+        flash('Đã cập nhật phiếu nhập kho và tính lại tồn kho thành công!', 'success')
+        
+    except Exception as e:
+        conn.rollback()
+        print(f"🔴 Lỗi khi cập nhật phiếu nhập: {e}")
+        flash(f'Lỗi hệ thống: {e}', 'danger')
+    finally:
+        cursor.close()
+        conn.close()
+        
+    return redirect(url_for('view_import_slip', import_id=import_id))
 
 # ======================================================
 # QUẢN LÝ ĐỊNH MỨC VẬT TƯ (SERVICE_MATERIALS - BOM)
@@ -2562,90 +2709,205 @@ def add_adjustment():
 @requires_permission('accounting') # Kế Toán
 def create_adjustment_page():
     conn = get_db_connection()
-    # 🟢 SỬA LỖI 1: Thay dictionary=True bằng cursor_factory
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # Lấy danh sách Vật tư (kèm Tồn kho để hiển thị tham khảo)
-    cursor.execute("SELECT material_id, material_name, base_unit, stock_quantity FROM Materials ORDER BY material_name")
-    materials_list = cursor.fetchall()
+    try:
+        # 1. Lấy danh sách Vật tư (cho form tạo và form lọc)
+        cursor.execute("""
+            SELECT material_id, material_name, base_unit, import_unit, stock_quantity, cost_price 
+            FROM Materials 
+            WHERE is_active = TRUE 
+            ORDER BY material_name
+        """)
+        materials_list = cursor.fetchall()
+
+        # ==========================================
+        # 2. XỬ LÝ BỘ LỌC TÌM KIẾM PHIẾU ĐIỀU CHỈNH
+        # ==========================================
+        filter_date = request.args.get('filter_date')
+        filter_material = request.args.get('filter_material')
+        
+        # Query gom nhóm các chi tiết vật tư vào cột materials_summary
+        # (Lưu ý: Bảng mẹ là Adjustment_Slips (cột id), Bảng con là Adjustment_Slip_Items (cột adjustment_id))
+        query = """
+            SELECT 
+                a.adjustment_id AS id, 
+                a.adjustment_date,
+                STRING_AGG(m.material_name || ' (' || i.quantity_adjusted || ')', ', ') as materials_summary
+            FROM Adjustment_Slips a
+            LEFT JOIN Adjustment_Slip_Items i ON a.adjustment_id = i.adjustment_id
+            LEFT JOIN Materials m ON i.material_id = m.material_id
+            WHERE 1=1
+        """
+        params = []
+        
+        if filter_date:
+            query += " AND DATE(a.adjustment_date) = %s"
+            params.append(filter_date)
+            
+        if filter_material:
+            # Sửa lại tên cột trong phần subquery cho khớp
+            query += " AND a.adjustment_id IN (SELECT adjustment_id FROM Adjustment_Slip_Items WHERE material_id = %s)"
+            params.append(filter_material)
+            
+        # Gom nhóm và sắp xếp theo đúng tên cột
+        query += " GROUP BY a.adjustment_id, a.adjustment_date ORDER BY a.adjustment_date DESC, a.adjustment_id DESC"
+        
+        cursor.execute(query, tuple(params))
+        adjustment_slips_list = cursor.fetchall()
+        
+        today = datetime.date.today().strftime('%Y-%m-%d')
     
-    cursor.close()
-    conn.close()
-    
-    today = datetime.date.today().isoformat()
-    
-    return render_template(CREATE_ADJUSTMENT_INV_HTML, 
-                           materials_list=materials_list,
-                           today=today)
+        return render_template(CREATE_ADJUSTMENT_INV_HTML, 
+                               materials_list=materials_list,
+                               adjustment_slips_list=adjustment_slips_list,
+                               today=today)
+    except Exception as e:
+        print(f"🔴 Lỗi load trang điều chỉnh: {e}")
+        flash(f"Có lỗi xảy ra: {e}", "danger")
+        return redirect(url_for('index'))
+    finally:
+        cursor.close()
+        conn.close()
 
 # 2. (POST) Xử lý Lưu Phiếu Điều chỉnh
 @app.route('/submit_adjustment_slip', methods=['POST'])
 @requires_permission('accounting') # Kế Toán
 def submit_adjustment_slip():
     conn = get_db_connection()
-    # Nên dùng RealDictCursor ở đây để lấy ID trả về cho an toàn
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    
     try:
-        # A. Lấy thông tin chung (Dùng .get() cho an toàn)
         adjustment_date = request.form.get('adjustment_date')
         
-        # B. Lấy danh sách chi tiết
+        # 1. Tạo phiếu Điều chỉnh Mẹ (Bảng Adjustment_Slips)
+        cursor.execute("""
+            INSERT INTO Adjustment_Slips (adjustment_date) 
+            VALUES (%s) RETURNING adjustment_id
+        """, (adjustment_date,))
+        adj_id = cursor.fetchone()['adjustment_id']
+
+        # 2. Lấy danh sách dữ liệu từ Giao diện
         material_ids = request.form.getlist('material_id[]')
         quantities = request.form.getlist('quantity_adjusted[]')
         reasons = request.form.getlist('reason[]')
+        unit_costs = request.form.getlist('unit_cost[]') # 🟢 Lấy thêm Mảng giá vốn từ HTML
         
-        # --- BƯỚC 1: TẠO PHIẾU CHA ---
-        # 🟢 SỬA LỖI 2: Dùng RETURNING slip_id thay cho lastrowid
-        sql_slip = "INSERT INTO Adjustment_Slips (adjustment_date) VALUES (%s) RETURNING slip_id"
-        cursor.execute(sql_slip, (adjustment_date,))
-        new_slip_id = cursor.fetchone()['slip_id']
+        # 🟢 Hứng thêm mảng Loại đơn vị (base hoặc import)
+        unit_types = request.form.getlist('unit_type[]')
 
-        # --- BƯỚC 2: LẶP QUA TỪNG VẬT TƯ ---
+        # 3. Lặp qua từng vật tư để xử lý
         for i in range(len(material_ids)):
-            mat_id = material_ids[i]
+            m_id = material_ids[i]
+            qty_str = quantities[i]
             
-            # Kiểm tra an toàn: Bỏ qua nếu dòng bị trống (người dùng bấm nhầm thêm dòng)
-            if not mat_id or not quantities[i]:
-                continue
+            if m_id and qty_str:
+                # Gán đúng tên biến tại đây
+                qty_input = float(qty_str) 
+                cost_input = float(unit_costs[i] or 0) 
+                # Lấy loại đơn vị, nếu không có thì mặc định là 'base'
+                unit_type = unit_types[i] if i < len(unit_types) else 'base'
+                reason = reasons[i] if i < len(reasons) else ''
                 
-            qty = int(quantities[i]) # Số này có thể âm hoặc dương
-            reason = reasons[i]
-            
-            # 2a. Lưu vào bảng chi tiết
-            sql_item = """
-                INSERT INTO Adjustment_Slip_Items (slip_id, material_id, quantity_adjusted, reason)
-                VALUES (%s, %s, %s, %s)
-            """
-            cursor.execute(sql_item, (new_slip_id, mat_id, qty, reason))
-            
-            # 2b. CẬP NHẬT KHO (Cộng dồn số lượng)
-            sql_update_stock = """
-                UPDATE Materials 
-                SET stock_quantity = stock_quantity + %s 
-                WHERE material_id = %s
-            """
-            cursor.execute(sql_update_stock, (qty, mat_id))
-        
-        # == GHI LOG ==
-        log_desc = f"Thêm Phiếu Điều Chỉnh Kho ID {new_slip_id}"
-        # Nhớ mở comment nếu bạn đã viết lại hàm log_system_action cho Postgres
-        # log_system_action(cursor, 'ADD', 'Adjustment_Slips', log_desc) 
-        # ===================
+                if qty_input == 0:
+                    continue # Nếu nhập số 0 thì bỏ qua
+
+                # B. LẤY HỆ SỐ QUY ĐỔI TỪ DATABASE
+                cursor.execute("""
+                    SELECT stock_quantity, cost_price, import_conversion_factor 
+                    FROM Materials WHERE material_id = %s
+                """, (m_id,))
+                mat = cursor.fetchone()
+                
+                current_stock = float(mat['stock_quantity'] or 0)
+                current_mac = float(mat['cost_price'] or 0)
+                factor = float(mat['import_conversion_factor'] or 1)
+
+                # C. QUY ĐỔI VỀ ĐƠN VỊ CƠ SỞ ĐỂ LƯU VÀO KHO
+                if unit_type == 'import':
+                    actual_qty = qty_input * factor       
+                    actual_cost = cost_input / factor     
+                else:
+                    actual_qty = qty_input                
+                    actual_cost = cost_input
+
+                # D. Lưu vào bảng Chi tiết điều chỉnh
+                cursor.execute("""
+                    INSERT INTO Adjustment_Slip_Items (adjustment_id, material_id, quantity_adjusted, reason, unit_cost)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (adj_id, m_id, actual_qty, reason, actual_cost))
+
+                # E. Tính toán Tồn kho mới
+                new_stock = current_stock + actual_qty
+                new_mac = current_mac # Mặc định giữ nguyên giá vốn cũ
+
+                # F. THUẬT TOÁN TÍNH GIÁ VỐN TRUNG BÌNH (Chỉ tính khi nhập thêm số Dương)
+                if actual_qty > 0:
+                    total_old_value = current_stock * current_mac
+                    total_added_value = actual_qty * actual_cost
+                    
+                    if new_stock > 0:
+                        new_mac = (total_old_value + total_added_value) / new_stock
+
+                # G. Cập nhật lại Tồn kho và Giá vốn vào bảng Vật tư
+                cursor.execute("""
+                    UPDATE Materials 
+                    SET stock_quantity = %s, cost_price = %s 
+                    WHERE material_id = %s
+                """, (new_stock, new_mac, m_id))
 
         conn.commit()
+        flash('Đã lưu Phiếu điều chỉnh và cập nhật lại Tồn kho, Giá vốn thành công!', 'success')
         
-    # 🟢 SỬA LỖI 3: Đổi từ mysql.connector.Error sang Exception chuẩn
     except Exception as e:
-        if 'conn' in locals(): conn.rollback()
-        print(f"🔴 Lỗi SQL Tạo Phiếu Điều Chỉnh: {e}")
-        return f"Lỗi hệ thống: {e}", 500
+        conn.rollback()
+        print(f"🔴 Lỗi submit_adjustment_slip: {e}")
+        flash(f'Lỗi hệ thống khi lưu: {e}', 'danger')
     finally:
-        if 'cursor' in locals(): cursor.close()
-        if 'conn' in locals(): conn.close()
-    
-    # Quay về trang Vật tư
-    return redirect(url_for('materials_page'))
+        cursor.close()
+        conn.close()
+
+    # Trả về trang danh sách hoặc form tạo tùy bạn
+    return redirect(url_for('create_adjustment_page'))
+
+# 3. Xem / Sửa chi tiết
+@app.route('/view_adjustment_slip/<int:id>', methods=['GET'])
+@requires_permission('admin', 'kho') # Đảm bảo đúng phân quyền của bạn
+def view_adjustment_slip(id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # 1. Lấy thông tin chung của phiếu điều chỉnh mẹ
+        cursor.execute("""
+            SELECT adjustment_id, adjustment_date
+            FROM Adjustment_Slips
+            WHERE adjustment_id = %s
+        """, (id,))
+        slip = cursor.fetchone()
+
+        if not slip:
+            flash('Không tìm thấy phiếu điều chỉnh này!', 'danger')
+            return redirect(url_for('create_adjustment_page'))
+
+        # 2. Lấy danh sách chi tiết vật tư trong phiếu đó
+        # (Lưu ý: Bảng con dùng cột adjustment_id để nối với phiếu mẹ)
+        cursor.execute("""
+            SELECT i.quantity_adjusted, i.unit_cost, i.reason,
+                   m.material_name, m.base_unit
+            FROM Adjustment_Slip_Items i
+            JOIN Materials m ON i.material_id = m.material_id
+            WHERE i.adjustment_id = %s
+        """, (id,))
+        items = cursor.fetchall()
+
+        return render_template(ADJUSTMENT_DETAIL_HTML, slip=slip, items=items)
+        
+    except Exception as e:
+        print(f"🔴 Lỗi xem phiếu điều chỉnh: {e}")
+        flash(f"Lỗi hệ thống: {e}", "danger")
+        return redirect(url_for('create_adjustment_page'))
+    finally:
+        cursor.close()
+        conn.close()
 
 # ======================================================
 # BÁO CÁO: CÔNG NỢ KHÁCH HÀNG (AI NỢ MÌNH)
@@ -2807,7 +3069,7 @@ def pay_supplier_bill():
 
         table_name = ""
         if bill_source == 'import_slip':
-            sql = "UPDATE Import_Slips SET payment_status = 'paid' WHERE slip_id = %s"
+            sql = "UPDATE Import_Slips SET payment_status = 'paid' WHERE import_id = %s"
             table_name = "Import_Slips"
         elif bill_source == 'maintenance':
             sql = "UPDATE Maintenance_Logs SET payment_status = 'paid' WHERE log_id = %s"
