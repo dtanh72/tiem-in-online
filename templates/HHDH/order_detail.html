@@ -6,6 +6,36 @@
 
     <h1>Chi tiết Đơn Hàng #{{ order.order_id }}</h1>
 	
+	{% if missing_materials and order.delivery_status != 'delivered' and order.status != 'cancelled' %}
+        <div class="alert alert-warning border-warning shadow-sm mb-4">
+            <h5 class="text-danger fw-bold"><i class="fas fa-exclamation-triangle"></i> Cảnh báo: Kho không đủ vật tư để sản xuất đơn này!</h5>
+            <p class="mb-2">Vui lòng nhập thêm các vật tư sau trước khi tiến hành sản xuất & giao hàng:</p>
+            <table class="table table-sm table-bordered bg-white mb-2">
+                <thead class="table-warning">
+                    <tr>
+                        <th>Tên Vật tư</th>
+                        <th class="text-center">Định mức Cần</th>
+                        <th class="text-center">Tồn kho Hiện tại</th>
+                        <th class="text-center text-danger">Số lượng Cần nhập thêm (Tối thiểu)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mat in missing_materials %}
+                    <tr>
+                        <td><strong>{{ mat.material_name }}</strong></td>
+                        <td class="text-center">{{ mat.required_qty }} {{ mat.base_unit }}</td>
+                        <td class="text-center">{{ mat.current_stock }} {{ mat.base_unit }}</td>
+                        <td class="text-center text-danger fw-bold">+{{ mat.missing_qty }} {{ mat.base_unit }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <a href="{{ url_for('create_import_page') }}" class="btn btn-sm btn-danger fw-bold mt-2">
+                <i class="fas fa-truck-loading"></i> Đi tới trang Nhập Kho
+            </a>
+        </div>
+    {% endif %}
+	
 	{% if order.status == 'cancelled' %}
 		<div class="alert alert-danger fw-bold text-center">
 			⚠️ ĐƠN HÀNG NÀY ĐÃ BỊ HỦY - CHẾ ĐỘ CHỈ XEM (READ-ONLY)
@@ -98,18 +128,53 @@
         {% if order.delivery_status != 'delivered' and order.status != 'cancelled' %}
         <div class="mb-3">
             <h2>Trạng thái Giao hàng</h2>
-            <form action="{{ url_for('update_delivery_status', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4">
-                <p>Trạng thái hiện tại: <strong>{{ order.delivery_status }}</strong></p>
-                <select name="delivery_status" class="form-control">
-                    <option value="pending" {% if order.delivery_status == 'pending' %}selected{% endif %}>Chưa giao</option>
-                    <option value="delivered" {% if order.delivery_status == 'delivered' %}selected{% endif %}>Đã giao<option>
-                </select>
-                <button type="submit" 
-				        style="margin-top: 15px; padding: 10px; background: #007bff; color: white; border: none;"
-						onclick="return confirm('Bạn có chắc chắn muốn cập nhật trạng thái giao hàng?');"
-						class="btn btn-primary">
-						Cập nhật Giao hàng
-				</button>
+            <form action="{{ url_for('update_delivery_status', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4 shadow-sm">
+                <p>Trạng thái hiện tại: <strong class="text-primary">{{ order.delivery_status }}</strong></p>
+
+                {% set can_deliver = false %}
+                
+                {% if order.is_outsourced %}
+                    {% if order.outsource_status == 'Đã nhận hàng' %}
+                        {% set can_deliver = true %}
+                    {% endif %}
+                {% else %}
+                    {% if not missing_materials %}
+                        {% set can_deliver = true %}
+                    {% endif %}
+                {% endif %}
+
+                {% if can_deliver %}
+                    <select name="delivery_status" class="form-control mb-3">
+                        <option value="pending" {% if order.delivery_status == 'pending' %}selected{% endif %}>Chưa giao</option>
+                        <option value="delivered" {% if order.delivery_status == 'delivered' %}selected{% endif %}>Đã giao</option>
+                    </select>
+                    <button type="submit" 
+                            style="padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px;"
+                            onclick="return confirm('Xác nhận Đã giao hàng? {% if not order.is_outsourced %}(Hệ thống sẽ tự động trừ kho vật tư){% endif %}');"
+                            class="btn btn-primary fw-bold">
+                            <i class="fas fa-truck"></i> Cập nhật Giao hàng
+                    </button>
+
+                {% else %}
+                    <div class="alert alert-danger mb-3 border-danger">
+                        <h5 class="fw-bold mb-1"><i class="fas fa-lock"></i> Khóa tính năng giao hàng!</h5>
+                        {% if order.is_outsourced %}
+                            Đơn gia công này <b>chưa nhận được hàng từ xưởng đối tác</b>. <br>
+                            👉 Vui lòng kéo xuống mục "Thông tin In Gia Công", cập nhật tiến độ xưởng thành <span class="badge bg-success">Đã nhận hàng</span> trước khi giao cho khách!
+                        {% else %}
+                            Kho hiện đang <b>thiếu vật tư sản xuất</b> (xem bảng cảnh báo bên trên). <br>
+                            👉 Vui lòng lập Phiếu Nhập Kho đủ số lượng vật tư yêu cầu để mở khóa chức năng này!
+                        {% endif %}
+                    </div>
+                    
+                    <select name="delivery_status" class="form-control mb-3" disabled>
+                        <option value="pending" selected>Chưa giao (Đang bị khóa)</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary fw-bold" disabled style="padding: 10px; border: none; border-radius: 5px;">
+                        <i class="fas fa-ban"></i> Cập nhật Giao hàng
+                    </button>
+                {% endif %}
+
             </form>
         </div>
         {% endif %}

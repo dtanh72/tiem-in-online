@@ -91,6 +91,15 @@ SYSTEM_LOG_HTML = "HHBM/system_logs.html"
 OUTSOURCE_CALCULATOR_HTML="HHGC/outsource_calculator.html"
 MANAGE_OUTSOURCE_HTML="HHGC/manage_outsource.html"
 
+
+#KHAI BAO CAC MODULE
+MD_AUTH = "Xác Thực"
+MD_HR = "Nhân Sự"
+MD_INV = "Quản Lý Kho"
+MD_SALE = "Quản Lý Kinh Doanh"
+MD_TECH = "Quản Lý Thiết Bị"
+MD_ACC = "Quản Lý Kế Toán"
+
 #def get_db_connection():
 #    try:
 #        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
@@ -168,7 +177,7 @@ def login():
                     username=user['username'],
                     full_name=user.get('full_name', ''), # Dùng .get() cho an toàn
                     action_type='LOGIN',
-                    target_module='Authentication',
+                    target_module=MD_AUTH,
                     description='Đăng nhập hệ thống thành công',
                     ip_address=request.remote_addr # Lấy IP của người dùng
                 )
@@ -236,7 +245,7 @@ def logout():
         username=current_user.username,
         full_name=current_user.full_name,
         action_type='LOGOUT',
-        target_module='Authentication',
+        target_module=MD_AUTH,
         description='Đăng xuất khỏi hệ thống',
         ip_address=request.remote_addr
     )
@@ -295,11 +304,11 @@ def system_logs_page():
         query['created_at'] = {}
         if start_date:
             # Chuyển chuỗi 'YYYY-MM-DD' thành đối tượng datetime
-            dt_start = datetime.strptime(start_date, '%Y-%m-%d')
+            dt_start = datetime.datetime.strptime(start_date, '%Y-%m-%d')
             query['created_at']['$gte'] = dt_start # $gte: Greater than or equal
         if end_date:
             # Cuối ngày của end_date
-            dt_end = datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            dt_end = datetime.datetime.strptime(end_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
             query['created_at']['$lte'] = dt_end # $lte: Less than or equal
 
     # --- TRƯỜNG HỢP 1: XUẤT CSV ---
@@ -520,6 +529,17 @@ def add_user():
         log_desc = f"Tạo User ID #{new_id}"
         # log_system_action(cursor, 'CREATE', 'Users', log_desc) # Mở comment nếu đã có hàm
         
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_USER',
+            target_module=MD_HR,
+            description=f"Tạo Username #{username}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -580,6 +600,17 @@ def add_service():
         cur.execute(sql, (name, price, description, u1, u2, u3))
         # new_id = cur.fetchone()[0] # Nếu cần dùng ID thì lấy ở đây
         
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_SERVICES',
+            target_module=MD_SALE,
+            description=f"Tạo Service #{name}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -601,6 +632,18 @@ def delete_service(service_id):
     try:
         sql = "DELETE FROM Services WHERE service_id = %s"
         cur.execute(sql, (service_id,))
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='DEL_SERVICES',
+            target_module=MD_SALE,
+            description=f"Xóa ServiceID #{service_id}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -657,6 +700,18 @@ def update_service():
             WHERE service_id=%s
         """
         cur.execute(sql, (name, price, description, u1, u2, u3, service_id))
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_SERVICES',
+            target_module=MD_SALE,
+            description=f"Cập nhật ServiceID #{service_id}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -676,9 +731,26 @@ def toggle_service(id):
     try:
         # Postgres hỗ trợ boolean toán tử NOT trực tiếp
         cur.execute("UPDATE Services SET is_active = NOT is_active WHERE service_id = %s", (id,))
+        
+        sql = "SELECT is_active FROM Services WHERE service_id = %s"
+        cur.execute(sql, (id,))
+        sv_active = cur.fetchone()
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ACT_SERVICES',
+            target_module=MD_SALE,
+            description=f"Trạng thái ServiceID #{id} là #{sv_active['is_active']}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
+        print(f"Lỗi thay đổi trạng thái dịch vụ: {e}")
     finally:
         cur.close()
         conn.close()
@@ -742,6 +814,17 @@ def add_customer():
         else:
             raise Exception("Database không trả về ID mới!")
         
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_CUSTOMER',
+            target_module=MD_SALE,
+            description=f"Thêm Khách hàng #{name}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
         flash("Thêm khách hàng thành công!", "success")
         
@@ -768,6 +851,7 @@ def delete_customer(customer_id):
         conn.commit()
     except Exception as e:
         conn.rollback()
+        print(f"Lỗi xóa khách hàng: {e}")
     finally:
         cur.close()
         conn.close()
@@ -813,8 +897,19 @@ def update_customer():
         cur.execute(sql, (name, phone, email, addr, comp, tax, bill, c_id))
         
         # Log
-        log_desc = f"Cập nhật thông tin Khách hàng ID {c_id}"
+        #log_desc = f"Cập nhật thông tin Khách hàng ID {c_id}"
         # log_system_action(cur, 'UPDATE', 'Customers', log_desc)
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_CUSTOMER',
+            target_module=MD_SALE,
+            description=f"Cập nhật thông tin Khách hàng ID #{c_id}",
+            ip_address=request.remote_addr
+        )
         
         conn.commit()
     except Exception as e:
@@ -836,9 +931,26 @@ def toggle_customer(id):
         cur.execute("UPDATE Customers SET is_active = NOT is_active WHERE customer_id = %s", (id,))
         # log_desc = f"Khóa thông tin Khách hàng ID {id}"
         # log_system_action(cur, 'TOGGLE', 'Customers', log_desc)
+        
+        sql = "SELECT is_active FROM Customers WHERE customer_id = %s"
+        cur.execute(sql, (id,))
+        cus_active = cur.fetchone()
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ACT_CUSTOMER',
+            target_module=MD_SALE,
+            description=f"Trạng thái CustomerID #{id} là #{cus_active['is_active']}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
+        print(f"Lỗi thay đổi trạng thái khách hàng: {e}")
     finally:
         cur.close()
         conn.close()
@@ -930,6 +1042,7 @@ def submit_order():
         qty_l2_list = request.form.getlist('qty_l2[]')
         qty_l3_list = request.form.getlist('qty_l3[]')
         
+                
         # --- B1: Tính Tổng tiền ---
         subtotal = 0
         for i in range(len(service_ids)):
@@ -938,15 +1051,28 @@ def submit_order():
         tax_amount = subtotal * (tax_rate / 100)
         total_amount = (subtotal + tax_amount) - discount_amount
         if total_amount < 0: total_amount = 0
+        
+        # 1. Hứng dữ liệu tổng tiền và tiền cọc từ Form
+        amount_paid = float(request.form.get('amount_paid', 0))
+        payment_method = request.form.get('payment_method', 'cash')
+        
+        # 2. Thuật toán xác định Trạng thái thanh toán
+        if amount_paid == 0:
+            payment_status = 'unpaid'
+        elif amount_paid >= total_amount:
+            payment_status = 'paid'
+            amount_paid = total_amount # Chống nhập dư tiền
+        else:
+            payment_status = 'partially_paid'
 
         # --- B2: Insert Order (POSTGRES RETURNING) ---
         sql_order = """
             INSERT INTO Orders (customer_id, status, subtotal, tax_rate, tax_amount, coupon_code, 
-            discount_amount, total_amount, is_outsourced, outsource_partner_id, outsource_base_cost, quote_id)
-            VALUES (%s, 'processing', %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+            discount_amount, total_amount, amount_paid, payment_status, payment_method, is_outsourced, outsource_partner_id, outsource_base_cost, quote_id)
+            VALUES (%s, 'processing', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
             RETURNING order_id
         """
-        cur.execute(sql_order, (customer_id, subtotal, tax_rate, tax_amount, coupon_code, discount_amount, total_amount, is_outsourced, outsource_partner_id, outsource_base_cost))
+        cur.execute(sql_order, (customer_id, subtotal, tax_rate, tax_amount, coupon_code, discount_amount, total_amount, amount_paid, payment_status, payment_method, is_outsourced, outsource_partner_id, outsource_base_cost))
         
         # Lấy ID đơn hàng mới
         new_order_id = cur.fetchone()['order_id']
@@ -1010,8 +1136,8 @@ def submit_order():
                     total_cost_item += (deduct_qty * avg_cost)
                     
                     # TRỪ KHO
-                    cur.execute("UPDATE Materials SET stock_quantity = stock_quantity - %s WHERE material_id = %s", 
-                               (deduct_qty, mat['material_id']))
+                    #cur.execute("UPDATE Materials SET stock_quantity = stock_quantity - %s WHERE material_id = %s", 
+                    #           (deduct_qty, mat['material_id']))
             
             profit = line_total - total_cost_item
             
@@ -1029,6 +1155,17 @@ def submit_order():
         # Log
         # log_system_action(cur, 'CREATE', 'Orders', f"Tạo đơn #{new_order_id}")
         
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_ORDER',
+            target_module=MD_SALE,
+            description=f"Thêm Đơn Hàng ID #{new_order_id} chạy trên thiết bị ID #{equip_id}",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -1038,44 +1175,83 @@ def submit_order():
         cur.close()
         conn.close()
         
-    return redirect(url_for('services_page')) # Hoặc trang chi tiết
+    return redirect(url_for('orders_history_page')) # Hoặc trang lịch sử đơn hàng
 
 # 3. Hủy đơn hàng
 @app.route('/cancel_order/<int:order_id>', methods=['POST'])
 def cancel_order(order_id):
     conn = get_db_connection()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     try:
-        cur.execute("SELECT status FROM Orders WHERE order_id = %s", (order_id,))
-        order = cur.fetchone()
-        
-        if not order or order['status'] != 'processing':
-            return "Chỉ hủy được đơn đang xử lý", 400
+        # 1. Kiểm tra trạng thái hiện tại của đơn hàng (Bảo mật Backend)
+        cursor.execute("""
+            SELECT status, delivery_status, amount_paid 
+            FROM orders WHERE order_id = %s
+        """, (order_id,))
+        order = cursor.fetchone()
+
+        if not order:
+            flash('Không tìm thấy đơn hàng!', 'danger')
+            return redirect(url_for('orders_history_page'))
+
+        # -----------------------------------------------------------------
+        # RÀNG BUỘC 1: CHẶN ĐỨNG NẾU ĐƠN GIA CÔNG ĐÃ NHẬN HÀNG VỀ
+        # -----------------------------------------------------------------
+        if order['delivery_status'] == 'delivered':
+            flash('Lỗi: Không thể hủy đơn hàng ĐÃ GIAO!', 'danger')
+            return redirect(url_for('orders_history_page'))
             
-        # Lấy Items để hoàn kho
-        cur.execute("SELECT service_id, quantity FROM Order_Items WHERE order_id = %s", (order_id,))
-        items = cur.fetchall()
-        
-        for item in items:
-            # Postgres logic hoàn kho (tương tự mysql logic nhưng đổi cú pháp execute)
-            # Ở đây tôi viết rút gọn logic bom
-            cur.execute("SELECT material_id, quantity_consumed FROM Service_Materials WHERE service_id = %s", (item['service_id'],))
-            boms = cur.fetchall()
+        if order['is_outsourced'] and order['outsource_status'] == 'Đã nhận hàng':
+            flash('Lỗi: Đơn gia công đã NHẬN HÀNG TỪ XƯỞNG, thành phẩm đã hoàn tất nên KHÔNG THỂ HỦY!', 'danger')
+            return redirect(url_for('orders_history_page'))
+
+        # Lấy số tiền khách đã cọc
+        deposited_amount = float(order['amount_paid'] or 0)
+
+        # -----------------------------------------------------------------
+        # RÀNG BUỘC 2: PHÂN LOẠI "HỦY TRẢ CỌC" HAY "KHÁCH BỎ CỌC"
+        # -----------------------------------------------------------------
+        # Nếu là đơn gia công VÀ xưởng đã bắt đầu làm (Khác trạng thái 'Đang chờ xưởng')
+        if order['is_outsourced'] and order['outsource_status'] not in ['Đang chờ xưởng', 'Chưa gửi xưởng']:
             
-            for b in boms:
-                # Giả sử quantity trong Order_Items là tổng (đơn giản hóa cho ví dụ)
-                return_qty = float(item['quantity']) * float(b['quantity_consumed'])
-                cur.execute("UPDATE Materials SET stock_quantity = stock_quantity + %s WHERE material_id = %s", 
-                           (return_qty, b['material_id']))
+            # Phạt cọc: Đổi trạng thái thành 'abandoned', GIỮ NGUYÊN AMOUNT_PAID
+            cursor.execute("""
+                UPDATE orders 
+                SET status = 'abandoned',
+                    notes = COALESCE(notes, '') || '\n[HỆ THỐNG]: Khách hủy đơn khi xưởng đang gia công -> MẤT CỌC.'
+                WHERE order_id = %s
+            """, (order_id,))
+            conn.commit()
+            
+            if deposited_amount > 0:
+                flash(f'Cảnh báo: Đã hủy đơn! Khách hàng MẤT CỌC ({deposited_amount:,.0f} vnđ) do xưởng đã tiến hành gia công.', 'warning')
+            else:
+                flash('Đã hủy đơn! (Khách chưa cọc nên xưởng chịu rủi ro chi phí này).', 'danger')
+
+        else:
+            # Hủy bình thường (Đơn nội bộ hoặc Đơn gia công nhưng xưởng chưa làm)
+            # Hoàn cọc: Đổi trạng thái 'cancelled', ĐƯA AMOUNT_PAID VỀ 0
+            cursor.execute("""
+                UPDATE orders 
+                SET status = 'cancelled',
+                    amount_paid = 0,               
+                    payment_status = 'unpaid'      
+                WHERE order_id = %s
+            """, (order_id,))
+            conn.commit()
+            
+            if deposited_amount > 0:
+                flash(f'Đã hủy đơn! CẦN HOÀN TRẢ {deposited_amount:,.0f} vnđ tiền cọc cho khách. Doanh thu đã được điều chỉnh giảm.', 'info')
+            else:
+                flash('Đã hủy đơn hàng thành công!', 'success')
         
-        cur.execute("UPDATE Orders SET status = 'cancelled' WHERE order_id = %s", (order_id,))
-        conn.commit()
     except Exception as e:
         conn.rollback()
-        print(f"Lỗi hủy đơn: {e}")
+        print(f"🔴 Lỗi hủy đơn hàng: {e}")
+        flash(f'Lỗi hệ thống khi hủy đơn: {e}', 'danger')
     finally:
-        cur.close()
+        cursor.close()
         conn.close()
         
     return redirect(url_for('orders_history_page'))
@@ -1138,40 +1314,70 @@ def order_detail_page(order_id):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
-    # 1. Lấy thông tin đơn hàng (JOIN thêm bảng Outsource_Partners để lấy tên xưởng)
-    cursor.execute("""
-        SELECT o.*, c.customer_name, c.phone, 
-               p.partner_name, p.phone as partner_phone
-        FROM Orders o
-        LEFT JOIN Customers c ON o.customer_id = c.customer_id
-        LEFT JOIN Outsource_Partners p ON o.outsource_partner_id = p.partner_id
-        WHERE o.order_id = %s
-    """, (order_id,))
-    order = cursor.fetchone()
-    
-    # 1. Lấy dịch vụ in tại nhà
-    # VÀ THAY BẰNG ĐOẠN CÓ LỆNH JOIN NÀY:
-    cursor.execute("""
-        SELECT oi.*, s.service_name, s.unit 
-        FROM Order_Items oi
-        LEFT JOIN Services s ON oi.service_id = s.service_id
-        WHERE oi.order_id = %s
-    """, (order_id,))
-    order_items = cursor.fetchall()
-    
-    # 2. Lấy chi tiết Dịch vụ Gia công ngoài (Nếu có)
-    outsource_items = []
-    if order and order['is_outsourced']:
-        cursor.execute("SELECT * FROM Order_Outsource_Items WHERE order_id = %s", (order_id,))
-        outsource_items = cursor.fetchall()
+    try:
         
-    cursor.close()
-    conn.close()
-    
-    #if not info: return "Not Found", 404
-    return render_template(CT_DH_HTML, order=order, 
-                            order_items=order_items,
-                            outsource_items=outsource_items)
+        # 1. Lấy thông tin đơn hàng (JOIN thêm bảng Outsource_Partners để lấy tên xưởng)
+        cursor.execute("""
+            SELECT o.*, c.customer_name, c.phone, 
+                   p.partner_name, p.phone as partner_phone
+            FROM Orders o
+            LEFT JOIN Customers c ON o.customer_id = c.customer_id
+            LEFT JOIN Outsource_Partners p ON o.outsource_partner_id = p.partner_id
+            WHERE o.order_id = %s
+        """, (order_id,))
+        order = cursor.fetchone()
+        
+        # 1. Lấy dịch vụ in tại nhà
+        # VÀ THAY BẰNG ĐOẠN CÓ LỆNH JOIN NÀY:
+        cursor.execute("""
+            SELECT oi.*, s.service_name, s.unit 
+            FROM Order_Items oi
+            LEFT JOIN Services s ON oi.service_id = s.service_id
+            WHERE oi.order_id = %s
+        """, (order_id,))
+        order_items = cursor.fetchall()
+        
+        # 2. Lấy chi tiết Dịch vụ Gia công ngoài (Nếu có)
+        outsource_items = []
+        if order and order['is_outsourced']:
+            cursor.execute("SELECT * FROM Order_Outsource_Items WHERE order_id = %s", (order_id,))
+            outsource_items = cursor.fetchall()
+                
+        # =========================================================
+        # TÍNH NĂNG THÔNG MINH: KIỂM TRA THIẾU HỤT VẬT TƯ (CHỈ CHO ĐƠN NỘI BỘ)
+        # =========================================================
+        missing_materials = []
+        if not order.get('is_outsourced'): 
+            cursor.execute("""
+                SELECT 
+                    m.material_id, 
+                    m.material_name, 
+                    m.base_unit,
+                    m.stock_quantity AS current_stock,
+                    SUM(sm.quantity_consumed * oi.quantity) AS required_qty,
+                    (SUM(sm.quantity_consumed * oi.quantity) - m.stock_quantity) AS missing_qty
+                FROM order_items oi
+                JOIN service_materials sm ON oi.service_id = sm.service_id
+                JOIN materials m ON sm.material_id = m.material_id
+                WHERE oi.order_id = %s
+                GROUP BY m.material_id, m.material_name, m.base_unit, m.stock_quantity
+                HAVING SUM(sm.quantity_consumed * oi.quantity) > m.stock_quantity
+            """, (order_id,))
+            missing_materials = cursor.fetchall()
+        
+        #if not info: return "Not Found", 404
+        return render_template(CT_DH_HTML, order=order, 
+                                order_items=order_items,
+                                outsource_items=outsource_items,
+                                missing_materials=missing_materials) # Truyền danh sách thiếu ra giao diện
+    except Exception as e:
+        print(f"🔴 Lỗi khi xem chi tiết đơn hàng: {e}")
+        flash(f"Đã xảy ra lỗi khi tải chi tiết đơn hàng: {e}", "danger")
+        # BẮT BUỘC PHẢI CÓ DÒNG NÀY ĐỂ TRẢ VỀ TRANG LỊCH SỬ KHI LỖI:
+        return redirect(url_for('orders_history_page'))
+    finally:
+        cursor.close()
+        conn.close()
 
 # ======================================================
 # XỬ LÝ THANH TOÁN & GIAO HÀNG (ORDERS) - POSTGRESQL
@@ -1219,9 +1425,35 @@ def log_payment(order_id):
         # 3. Cập nhật trạng thái thanh toán
         cur.execute("UPDATE Orders SET payment_status = %s WHERE order_id = %s", (new_payment_status, order_id))
         
+        # KIỂM TRA ĐỂ AUTO-COMPLETE ĐƠN HÀNG
+        if new_payment_status == 'paid':
+            # Kiểm tra xem đơn đã giao chưa
+            cursor.execute("SELECT delivery_status FROM orders WHERE order_id = %s", (order_id,))
+            check_order = cursor.fetchone()
+            
+            if check_order and check_order['delivery_status'] == 'delivered':
+                # Nếu đã giao rồi thì chuyển thẳng status = 'completed'
+                cursor.execute("""
+                    UPDATE orders 
+                    SET status = 'completed' 
+                    WHERE order_id = %s
+                """, (order_id,))
+                flash('🎉 Đã thu đủ tiền! Đơn hàng tự động chuyển sang trạng thái HOÀN THÀNH.', 'success')
+        
         # Ghi Log
-        log_desc = f"Thanh toán đơn hàng #{order_id}. Số tiền: {amount_received:,.0f}"
+        #log_desc = f"Thanh toán đơn hàng #{order_id}. Số tiền: {amount_received:,.0f}"
         # log_system_action(cur, 'PAYMENT', 'Orders', log_desc)
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='PAY_ORDER',
+            target_module=MD_ACC,
+            description=f"Thanh toán đơn hàng #{order_id}. Số tiền: {amount_received:,.0f} VNĐ. Tổng đã thanh toán: {new_paid:,.0f} / {total:,.0f} VNĐ",
+            ip_address=request.remote_addr
+        )
         
         conn.commit()
         
@@ -1244,13 +1476,73 @@ def update_delivery_status(order_id):
         new_status = request.form.get('delivery_status')
         
         if new_status:
+            # 1. LẤY THÔNG TIN ĐƠN HÀNG TRƯỚC KHI CẬP NHẬT (Thêm payment_status vào câu SELECT)
             cursor.execute("""
-                UPDATE Orders 
+                SELECT delivery_status, payment_status, is_outsourced 
+                FROM orders 
+                WHERE order_id = %s
+            """, (order_id,))
+            order = cursor.fetchone()
+            
+            current_status = order['delivery_status']
+            payment_status = order['payment_status'] # Lấy trạng thái thanh toán hiện tại
+            is_outsourced = order.get('is_outsourced', False)
+
+            # 2. CẬP NHẬT TRẠNG THÁI GIAO HÀNG
+            cursor.execute("""
+                UPDATE orders 
                 SET delivery_status = %s 
                 WHERE order_id = %s
             """, (new_status, order_id))
+
+            # ========================================================
+            # 3. THUẬT TOÁN TRỪ KHO TỰ ĐỘNG (AUTO-DEDUCT INVENTORY)
+            # ========================================================
+            if new_status == 'delivered' and current_status != 'delivered' and not is_outsourced:
+                
+                # Sửa thành sm.quantity_consumed
+                cursor.execute("""
+                    SELECT 
+                        sm.material_id, 
+                        SUM(sm.quantity_consumed * oi.quantity) AS total_deduct_qty
+                    FROM order_items oi
+                    JOIN service_materials sm ON oi.service_id = sm.service_id
+                    WHERE oi.order_id = %s
+                    GROUP BY sm.material_id
+                """, (order_id,))
+                
+                materials_to_deduct = cursor.fetchall()
+
+                # B. Tiến hành trừ kho cho từng loại vật tư
+                for mat in materials_to_deduct:
+                    m_id = mat['material_id']
+                    deduct_qty = float(mat['total_deduct_qty'] or 0)
+                    
+                    if deduct_qty > 0:
+                        cursor.execute("""
+                            UPDATE materials 
+                            SET stock_quantity = stock_quantity - %s 
+                            WHERE material_id = %s
+                        """, (deduct_qty, m_id))
+                        
+                        # Tùy chọn nâng cao: Nếu bạn có bảng System_Log hoặc Inventory_Transactions, 
+                        # bạn có thể insert 1 dòng vào đây để ghi nhận lịch sử xuất kho cho đơn hàng này.
+            
+            # ========================================================
+            # 4. AUTO-COMPLETE: TỰ ĐỘNG HOÀN THÀNH ĐƠN HÀNG
+            # ========================================================
+            if new_status == 'delivered' and payment_status == 'paid':
+                cursor.execute("""
+                    UPDATE orders 
+                    SET status = 'completed' 
+                    WHERE order_id = %s
+                """, (order_id,))
+                flash('🎉 Đã xuất kho thành công! Đơn hàng tự động chuyển sang HOÀN THÀNH (Đã thu đủ tiền & Đã giao).', 'success')
+            else:
+                flash('Đã cập nhật trạng thái giao hàng và xuất kho thành công!', 'success')
+            
             conn.commit()
-            flash('Đã cập nhật trạng thái giao hàng!', 'success')
+            #flash('Đã cập nhật trạng thái và xuất kho thành công!', 'success')
             
     except Exception as e:
         conn.rollback()
@@ -1423,7 +1715,7 @@ def submit_quote():
             RETURNING quote_id
         """
         val_insert = (customer_id, notes, subtotal, tax_rate, tax_amount, coupon_code, discount_amount, total_amount)
-        cur.execute(sql_insert, val_insert)
+        cur.execute(sql_insert_quote, val_insert)
         
         new_quote_id = cur.fetchone()['quote_id']
 
@@ -1438,6 +1730,17 @@ def submit_quote():
         
         # log_desc = f"Tạo Báo Giá #{new_quote_id}. Tổng tiền: {total_amount:,.0f}"
         # log_system_action(cur, 'CREATE', 'Quotes', log_desc)
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_QUOTE',
+            target_module=MD_SALE,
+            description=f"Tạo Báo Giá ID #{new_quote_id} cho khách hàng ID #{customer_id}. Tổng tiền: {total_amount:,.0f}",
+            ip_address=request.remote_addr
+        )
         
         conn.commit()
         
@@ -1492,6 +1795,18 @@ def update_quote_status(quote_id):
     try:
         new_status = request.form['quote_status']
         cur.execute("UPDATE Quotes SET status = %s WHERE quote_id = %s", (new_status, quote_id))
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_QUOTE',
+            target_module=MD_SALE,
+            description=f"Cập nhật trạng thái Báo Giá ID #{quote_id} qua #{new_status}.",
+            ip_address=request.remote_addr
+        )
+        
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -1552,6 +1867,17 @@ def convert_quote_to_order(quote_id):
                 deduct = float(item['quantity']) * float(b['quantity_consumed'])
                 cur.execute("UPDATE Materials SET stock_quantity = stock_quantity - %s WHERE material_id = %s", 
                            (deduct, b['material_id']))
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='CONVERT_QUOTE',
+            target_module=MD_SALE,
+            description=f"Chuyển đổi Báo Giá ID #{quote_id} thành Đơn hàng ID #{new_order_id}.",
+            ip_address=request.remote_addr
+        )
         
         conn.commit()
         
@@ -1642,6 +1968,17 @@ def update_quote(quote_id):
             WHERE quote_id = %s
         """
         cur.execute(sql_update, (customer_id, tax_rate, notes, subtotal, tax_amount, total_amount, quote_id))
+        
+        # GHI NHẬT KÝ HỆ THỐNG
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_QUOTE',
+            target_module=MD_SALE,
+            description=f"Cập nhật thông tin Báo Giá ID #{quote_id}. Tổng tiền: {total_amount:,.0f}",
+            ip_address=request.remote_addr
+        )
         
         conn.commit()
     except Exception as e:

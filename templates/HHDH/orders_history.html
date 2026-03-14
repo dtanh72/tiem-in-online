@@ -94,8 +94,14 @@
 						</form>
 					{% endif %}
 
-					{% if order.status == 'cancelled' %}
-						<span class="badge bg-secondary">Đã hủy</span>
+					{% if order.status == 'processing' %}
+						<span class="badge bg-warning text-dark">Đang xử lý</span>
+					{% elif order.status == 'completed' %}
+						<span class="badge bg-success">Hoàn thành</span>
+					{% elif order.status == 'cancelled' %}
+						<span class="badge bg-danger">Đã hủy (Hoàn cọc)</span>						
+					{% elif order.status == 'abandoned' %}
+						<span class="badge bg-dark text-white"><i class="fas fa-skull-crossbones"></i> Khách bỏ cọc</span>
 					{% endif %}
                 </td>
             </tr>

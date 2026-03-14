@@ -91,6 +91,28 @@
 
 						<hr>
                         <h3 class="text-danger">Tổng cộng: <span id="grand_total">0</span> vnđ</h3>
+						
+						<div class="card shadow-sm mb-4 border-info">
+							<div class="card-header bg-info text-white fw-bold">
+								<i class="fas fa-hand-holding-usd"></i> Ghi nhận Đặt cọc / Thanh toán
+							</div>
+							<div class="card-body bg-light row">
+								<div class="col-md-6 mb-3">
+									<label class="form-label fw-bold">Số tiền khách cọc (vnđ):</label>
+									<input type="number" name="amount_paid" id="amount_paid" class="form-control" placeholder="0" min="0" value="0">
+									<small class="text-muted">Nhập 0 nếu khách chưa thanh toán.</small>
+								</div>
+								<div class="col-md-6 mb-3">
+									<label class="form-label fw-bold">Hình thức thanh toán:</label>
+									<select name="payment_method" class="form-select">
+										<option value="cash">Tiền mặt</option>
+										<option value="transfer">Chuyển khoản</option>
+										<option value="other">Khác</option>
+									</select>
+								</div>
+							</div>
+						</div>
+						
 						<button type="submit" class="btn btn-primary">LƯU ĐƠN HÀNG</button>
 					</div>
 				</div>
