@@ -78,6 +78,7 @@ CT_BG_HTML = "HHBG/quote_detail.html"
 EDIT_QUOTE_HTML = "HHBG/edit_quote.html"
 TB_HTML = "HHTB/equipment.html"
 CT_TB_HTML = "HHTB/equipment_detail.html"
+EQUIP_HIST_HTML = "HHTB/maintenance_history.html"
 SUPPLIER_DEBT_REPORT = "HHCC/supplier_debt_report.html"
 NCC_HTML="HHCC/suppliers.html"
 CREATE_IMPORT_HTML = "HHKO/create_import.html"
@@ -462,11 +463,38 @@ def dashboard_page():
     res_due = cur.fetchone()
     total_due_customer = res_due['total'] if res_due and res_due['total'] else 0
 
+    # ========================================================
+    # THỐNG KÊ CHI PHÍ THÁNG HIỆN TẠI (Đã bổ sung Vận hành)
+    # ========================================================
+    cur.execute("""
+        SELECT 
+            COALESCE((SELECT SUM(total_amount) FROM import_slips WHERE EXTRACT(MONTH FROM import_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM import_date) = EXTRACT(YEAR FROM CURRENT_DATE)), 0) AS total_import_cost,
+            COALESCE((SELECT SUM(cost) FROM maintenance_logs WHERE EXTRACT(MONTH FROM maintenance_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM maintenance_date) = EXTRACT(YEAR FROM CURRENT_DATE)), 0) AS total_maintenance_cost,
+            COALESCE((SELECT SUM(outsource_base_cost) FROM orders WHERE is_outsourced = TRUE AND status != 'cancelled' AND EXTRACT(MONTH FROM order_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM order_date) = EXTRACT(YEAR FROM CURRENT_DATE)), 0) AS total_outsource_cost,
+            
+            -- 4. Thêm chi phí vận hành
+            COALESCE((SELECT SUM(amount) FROM operating_expenses WHERE EXTRACT(MONTH FROM expense_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM expense_date) = EXTRACT(YEAR FROM CURRENT_DATE)), 0) AS total_operating_cost
+    """)
+    costs = cur.fetchone()
+    
+    import_cost = float(costs['total_import_cost'] or 0)
+    maintenance_cost = float(costs['total_maintenance_cost'] or 0)
+    outsource_cost = float(costs['total_outsource_cost'] or 0)
+    operating_cost = float(costs['total_operating_cost'] or 0) # Lấy biến mới
+    
+    # Cộng tổng chi phí mới
+    total_expense = import_cost + maintenance_cost + outsource_cost + operating_cost
+
     conn.close()
 
     # Trả về giao diện Dashboard thật
     # Các biến khác chưa có tính năng (nhập kho, bảo trì...) ta truyền tạm số 0
-    return render_template(DASHBOARD_HTML,
+    return render_template(DASHBOARD_HTML, 
+                           import_cost=import_cost, 
+                           maintenance_cost=maintenance_cost, 
+                           outsource_cost=outsource_cost, 
+                           operating_cost=operating_cost,
+                           total_expense=total_expense,
                            revenue_today=revenue_today,
                            orders_today=orders_today,
                            total_due_customer=total_due_customer,
@@ -477,6 +505,44 @@ def dashboard_page():
                            top_services=[],
                            monthly_revenue=[],
                            monthly_labels=[])
+
+@app.route('/operating_expenses', methods=['GET', 'POST'])
+@requires_permission('admin') # Thường chỉ chủ doanh nghiệp hoặc kế toán trưởng mới xem được
+def operating_expenses_page():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        if request.method == 'POST':
+            expense_date = request.form.get('expense_date')
+            expense_type = request.form.get('expense_type')
+            amount = float(request.form.get('amount', 0))
+            description = request.form.get('description', '')
+            
+            cursor.execute("""
+                INSERT INTO operating_expenses (expense_date, expense_type, amount, description)
+                VALUES (%s, %s, %s, %s)
+            """, (expense_date, expense_type, amount, description))
+            conn.commit()
+            flash('Đã ghi nhận chi phí thành công!', 'success')
+            return redirect(url_for('operating_expenses_page'))
+
+        # Lọc theo tháng hiện tại làm mặc định
+        cursor.execute("""
+            SELECT * FROM operating_expenses 
+            ORDER BY expense_date DESC, expense_id DESC
+            LIMIT 100
+        """)
+        expenses_list = cursor.fetchall()
+
+        return render_template('operating_expenses.html', expenses_list=expenses_list)
+        
+    except Exception as e:
+        print(f"🔴 Lỗi chi phí vận hành: {e}")
+        flash(f'Lỗi hệ thống: {e}', 'danger')
+        return redirect(url_for('index'))
+    finally:
+        cursor.close()
+        conn.close()
 
 # ======================================================
 # QUẢN LÝ NGƯỜI DÙNG (USERS) - CRUD
@@ -2400,6 +2466,72 @@ def update_equipment():
     # Quay lại trang chi tiết sau khi lưu
     return redirect(url_for('equipment_detail_page', equipment_id=e_id))
 
+@app.route('/maintenance_history', methods=['GET'])
+@requires_permission('admin', 'kho') # Điều chỉnh phân quyền cho phù hợp
+def maintenance_history():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # 1. Lấy danh sách thiết bị để đưa vào Dropdown bộ lọc
+        cursor.execute("SELECT equipment_id, equipment_name FROM equipment ORDER BY equipment_name")
+        equipment_list = cursor.fetchall()
+
+        # 2. Nhận các tham số lọc từ thanh địa chỉ (URL)
+        filter_equipment = request.args.get('filter_equipment')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        # 3. Xây dựng câu lệnh SQL linh hoạt dựa trên bộ lọc
+        query = """
+            SELECT 
+                ml.log_id, 
+                ml.maintenance_date, 
+                ml.description, 
+                ml.cost, 
+                ml.current_counter_at_log,
+                ml.technician_name,
+                ml.replaced_quantity,
+                e.equipment_name,
+                m.material_name AS replaced_part_name,
+                m.base_unit
+            FROM maintenance_logs ml
+            LEFT JOIN equipment e ON ml.equipment_id = e.equipment_id
+            LEFT JOIN materials m ON ml.replaced_material_id = m.material_id
+            WHERE 1=1
+        """
+        params = []
+
+        # Áp dụng các điều kiện lọc nếu có
+        if filter_equipment:
+            query += " AND ml.equipment_id = %s"
+            params.append(filter_equipment)
+            
+        if start_date:
+            query += " AND ml.maintenance_date >= %s"
+            params.append(start_date)
+            
+        if end_date:
+            query += " AND ml.maintenance_date <= %s"
+            params.append(end_date)
+
+        # Sắp xếp lịch sử mới nhất lên đầu
+        query += " ORDER BY ml.maintenance_date DESC, ml.log_id DESC"
+
+        cursor.execute(query, tuple(params))
+        maintenance_logs = cursor.fetchall()
+
+        return render_template(EQUIP_HIST_HTML, 
+                               equipment_list=equipment_list,
+                               maintenance_logs=maintenance_logs)
+
+    except Exception as e:
+        print(f"🔴 Lỗi load lịch sử bảo trì: {e}")
+        flash(f"Lỗi hệ thống: {e}", "danger")
+        return redirect(url_for('index'))
+    finally:
+        cursor.close()
+        conn.close()
+
 # ======================================================
 # QUẢN LÝ BẢO TRÌ THIẾT BỊ (LOGS) - POSTGRESQL
 # ======================================================
@@ -3346,7 +3478,7 @@ def supplier_debt_report():
     
     sql_imports = """
         SELECT 
-            S.slip_id AS id, 
+            S.import_id AS id, 
             S.import_date AS date, 
             COALESCE(Sup.supplier_name, 'Không xác định') as supplier_name,
             S.total_amount,

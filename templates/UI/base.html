@@ -39,11 +39,22 @@
                     </li>
 					{% endif %}
 					
-					{% if current_user.can('inventory') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('equipment_page') }}">Thiết bị</a>
-                    </li>
-					{% endif %}
+					 <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownTB" role="button" data-bs-toggle="dropdown">
+                            Thiết Bị
+                        </a>
+                        <ul class="dropdown-menu">
+							{% if current_user.can('inventory') %}
+							<li>
+								<a class="dropdown-item" href="{{ url_for('equipment_page') }}">Danh Mục TB</a>
+							</li>
+							<li >
+								<a class="dropdown-item" href="{{ url_for('maintenance_history') }}">Lịch sử bảo trì</a>
+							</li>
+							{% endif %}						
+                        </ul>
+                    </li>					
+					
                     
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
@@ -67,6 +78,9 @@
 							{% endif %}
 							{% if current_user.can('sale') or current_user.can('all') %}
 							<li><a class="dropdown-item" href="{{ url_for('coupons_page') }}">Mã Khuyến Mãi</a></li>
+							{% endif %}
+							{% if current_user.can('accounting') or current_user.can('all') %}
+							<li><a class="dropdown-item" href="{{ url_for('operating_expenses_page') }}">Chi Phí Vận Hành</a></li>
 							{% endif %}
                         </ul>
                     </li>

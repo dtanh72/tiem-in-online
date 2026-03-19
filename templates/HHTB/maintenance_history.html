@@ -1,0 +1,98 @@
+{% extends 'UI/base.html' %}
+{% block title %}Lịch sử Bảo trì Thiết bị{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-tools text-secondary"></i> Lịch sử Bảo trì & Thay thế Vật tư</h2>
+        </div>
+
+    <div class="card shadow-sm mb-4 border-secondary">
+        <div class="card-body bg-light">
+            <form method="GET" class="row align-items-end">
+                
+                <div class="col-md-3 mb-2 mb-md-0">
+                    <label class="form-label fw-bold text-muted small">Lọc theo Thiết bị:</label>
+                    <select name="filter_equipment" class="form-select">
+                        <option value="">-- Tất cả thiết bị --</option>
+                        {% for eq in equipment_list %}
+                            <option value="{{ eq.equipment_id }}" {% if request.args.get('filter_equipment') == eq.equipment_id|string %}selected{% endif %}>
+                                {{ eq.equipment_name }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-3 mb-2 mb-md-0">
+                    <label class="form-label fw-bold text-muted small">Từ ngày:</label>
+                    <input type="date" name="start_date" class="form-control" value="{{ request.args.get('start_date', '') }}">
+                </div>
+
+                <div class="col-md-3 mb-2 mb-md-0">
+                    <label class="form-label fw-bold text-muted small">Đến ngày:</label>
+                    <input type="date" name="end_date" class="form-control" value="{{ request.args.get('end_date', '') }}">
+                </div>
+
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1 fw-bold"><i class="fas fa-filter"></i> Lọc</button>
+                    <a href="{{ url_for('maintenance_history') }}" class="btn btn-outline-secondary fw-bold" title="Bỏ lọc">
+                        <i class="fas fa-sync-alt"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered mb-0 align-middle">
+                <thead class="table-dark text-center">
+                    <tr>
+                        <th style="width: 10%;">Ngày bảo trì</th>
+                        <th style="width: 15%;">Tên Thiết bị</th>
+                        <th style="width: 25%;">Nội dung công việc</th>
+                        <th style="width: 20%;">Vật tư thay thế</th>
+                        <th style="width: 10%;">Counter máy</th>
+                        <th style="width: 10%;">Chi phí (vnđ)</th>
+                        <th style="width: 10%;">Kỹ thuật viên</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in maintenance_logs %}
+                    <tr>
+                        <td class="text-center fw-bold">{{ log.maintenance_date.strftime('%d/%m/%Y') if log.maintenance_date else '' }}</td>
+                        <td class="fw-bold text-primary">{{ log.equipment_name or 'N/A' }}</td>
+                        <td>{{ log.description }}</td>
+                        
+                        <td>
+                            {% if log.replaced_part_name %}
+                                <span class="badge bg-warning text-dark fs-6">
+                                    <i class="fas fa-cogs"></i> {{ log.replaced_part_name }}
+                                </span>
+                                <br>
+                                <small class="text-muted">SL thay: {{ log.replaced_quantity }} {{ log.base_unit }}</small>
+                            {% else %}
+                                <span class="text-muted fst-italic">Không thay vật tư</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="text-center text-secondary fw-bold">
+                            {{ "{:,.0f}".format(log.current_counter_at_log) if log.current_counter_at_log else '-' }}
+                        </td>
+                        <td class="text-end fw-bold text-danger">
+                            {{ "{:,.0f}".format(log.cost) if log.cost and log.cost > 0 else '0' }}
+                        </td>
+                        <td class="text-center">{{ log.technician_name or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-5">
+                            <i class="fas fa-folder-open fs-1 mb-2 text-light"></i><br>
+                            Chưa có dữ liệu bảo trì hoặc không tìm thấy kết quả phù hợp.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

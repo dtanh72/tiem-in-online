@@ -163,63 +163,76 @@
 		</div>
 	</div>
 	
-	{% block scripts %}
-		<script>
-			document.addEventListener('DOMContentLoaded', function() {
-				const saveBtn = document.getElementById('saveQuickSupplier');
+{% endblock %} 
+
+{% block scripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const saveBtn = document.getElementById('saveQuickSupplier');
+            
+            if(saveBtn){
+                // Dùng .onclick thay vì addEventListener để đảm bảo KHÔNG bao giờ bị nhân bản sự kiện
+                saveBtn.onclick = function(e) {
+                    e.preventDefault(); // Ngăn chặn hành vi mặc định
+                    
+                    // 1. Lấy dữ liệu
+                    const name = document.getElementById('quick_supplier_name').value.trim();
+                    const phone = document.getElementById('quick_supplier_phone').value.trim();
+                    const email = document.getElementById('quick_supplier_email').value.trim();
+                    
+                    if(!name) {
+                        document.getElementById('quickSupplierError').textContent = "Vui lòng nhập tên NCC";
+                        return;
+                    }
+
+                    // 2. KHÓA NÚT BẤM ĐỂ CHỐNG SPAM CLICK ĐÚP
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = "Đang lưu...";
+
+                    const formData = new FormData();
+                    formData.append('supplier_name', name);
+                    formData.append('phone', phone);
+                    formData.append('email', email);
+
+                    // 3. Gửi AJAX
+                    fetch("{{ url_for('ajax_add_supplier') }}", {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if(data.success) {
+                            // Thành công: Thêm vào dropdown và chọn nó
+                            const select = document.getElementById('supplier_id');
+                            const option = document.createElement('option');
+                            option.value = data.new_id;
+                            option.text = data.new_name;
+                            option.selected = true;
+                            select.appendChild(option);
+                            
+                            // Đóng modal
+                            const modalEl = document.getElementById('quickAddSupplierModal');
+                            const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                            modalInstance.hide();
+                            
+                            document.getElementById('quickAddSupplierForm').reset();
+                            document.getElementById('quickSupplierError').textContent = "";
+                        } else {
+                            alert('Lỗi: ' + data.error);
+                        }
+                    })
+                    .catch(err => {
+                        console.error(err);
+                        alert('Lỗi kết nối server');
+                    })
+                    .finally(() => {
+                        // 4. MỞ KHÓA NÚT BẤM KHI ĐÃ XỬ LÝ XONG (Dù thành công hay thất bại)
+                        saveBtn.disabled = false;
+                        saveBtn.innerHTML = "Lưu NCC";
+                    });
+                };
 				
-				if(saveBtn){
-					saveBtn.addEventListener('click', function() {
-						// 1. Lấy dữ liệu
-						const name = document.getElementById('quick_supplier_name').value;
-						const phone = document.getElementById('quick_supplier_phone').value;
-						const email = document.getElementById('quick_supplier_email').value;
-						
-						if(!name) {
-							document.getElementById('quickSupplierError').textContent = "Vui lòng nhập tên NCC";
-							return;
-						}
-
-						const formData = new FormData();
-						formData.append('supplier_name', name);
-						formData.append('phone', phone);
-						formData.append('email', email);
-
-						// 2. Gửi AJAX (Dùng lại route cũ trong app.py)
-						fetch("{{ url_for('ajax_add_supplier') }}", {
-							method: 'POST',
-							body: formData
-						})
-						.then(response => response.json())
-						.then(data => {
-							if(data.success) {
-								// 3. Thành công: Thêm vào dropdown và chọn nó
-								const select = document.getElementById('supplier_id');
-								const option = document.createElement('option');
-								option.value = data.new_id;
-								option.text = data.new_name;
-								option.selected = true;
-								select.appendChild(option);
-								
-								// 4. Đóng modal
-								// (Đảm bảo bạn dùng đúng cú pháp Bootstrap 5)
-								const modalEl = document.getElementById('quickAddSupplierModal');
-								const modalInstance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-								modalInstance.hide();
-								
-								document.getElementById('quickAddSupplierForm').reset();
-							} else {
-								alert('Lỗi: ' + data.error);
-							}
-						})
-						.catch(err => {
-							console.error(err);
-							alert('Lỗi kết nối server');
-						});
-					});
-				}
-			});
-		</script>
-	{% endblock %}
-
+            }
+        });
+    </script>
 {% endblock %}

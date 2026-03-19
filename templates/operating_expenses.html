@@ -1,0 +1,75 @@
+{% extends 'UI/base.html' %}
+{% block title %}Quản lý Chi phí Vận hành{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800"><i class="fas fa-wallet text-primary"></i> Chi phí Vận hành (OPEX)</h1>
+
+    <div class="row">
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white fw-bold">Thêm Chi Phí Mới</div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">Ngày chi:</label>
+                            <input type="date" name="expense_date" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Loại chi phí:</label>
+                            <select name="expense_type" class="form-select" required>
+                                <option value="Tiền mặt bằng">Tiền mặt bằng</option>
+                                <option value="Điện, nước, rác">Điện, nước, rác</option>
+                                <option value="Lương, thưởng">Lương, thưởng</option>
+                                <option value="Thuế, phí nhà nước">Thuế, phí nhà nước</option>
+                                <option value="Sửa chữa, duy tu">Sửa chữa, duy tu CSVC</option>
+                                <option value="Tiếp khách, Marketing">Tiếp khách, Marketing</option>
+                                <option value="Khác">Chi phí khác</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Số tiền (vnđ):</label>
+                            <input type="number" name="amount" class="form-control" min="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Diễn giải chi tiết:</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="VD: Lương tháng 3/2026 cho 5 NV..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Ghi nhận Chi phí</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white fw-bold">Lịch sử giao dịch (100 dòng gần nhất)</div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Ngày</th>
+                                <th>Loại chi phí</th>
+                                <th>Số tiền</th>
+                                <th>Diễn giải</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for exp in expenses_list %}
+                            <tr>
+                                <td>{{ exp.expense_date.strftime('%d/%m/%Y') }}</td>
+                                <td><span class="badge bg-secondary">{{ exp.expense_type }}</span></td>
+                                <td class="fw-bold text-danger">{{ "{:,.0f}".format(exp.amount) }} đ</td>
+                                <td class="small text-muted">{{ exp.description }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-3">Chưa có dữ liệu chi phí.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
