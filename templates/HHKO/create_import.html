@@ -4,7 +4,8 @@
 {% block content %}
     <h1>📋 Tạo Phiếu Nhập Kho</h1>
 
-    <form action="{{ url_for('submit_import_slip') }}" method="POST">
+    <form action="{{ url_for('inventory.submit_import_slip') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="container">
             <div class="row mb-4 bg-light p-3 rounded shadow-sm">
                 <div class="col-md-4">
@@ -142,7 +143,8 @@
 					<h5 class="modal-title">Thêm Nhà Cung Cấp Mới</h5>
 					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 				</div>
-				<form action="{{ url_for('add_supplier') }}" method="POST">
+				<form action="{{ url_for('suppliers.add_supplier') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 					<div class="modal-body">
 						<div class="mb-3">
 							<label class="form-label">Tên Nhà Cung Cấp <span class="text-danger">*</span></label>
@@ -227,7 +229,7 @@
                                 {% endif %}
                             </td>
                             <td class="text-center">
-                                <a href="{{ url_for('view_import_slip', import_id=slip.import_id) }}" class="btn btn-sm btn-info text-white fw-bold">
+                                <a href="{{ url_for('inventory.view_import_slip', import_id=slip.import_id) }}" class="btn btn-sm btn-info text-white fw-bold">
                                     <i class="fas fa-eye"></i> Xem / Sửa
                                 </a>
                             </td>
@@ -295,12 +297,12 @@
         document.getElementById('saveQuickSupplier').addEventListener('click', function() {
             const name = document.getElementById('quick_supplier_name').value;
             if(!name) return;
-            const formData = new FormData();
+            const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
             formData.append('supplier_name', name);
             formData.append('phone', ''); 
             formData.append('email', ''); 
 
-            fetch("{{ url_for('ajax_add_supplier') }}", {
+            fetch("{{ url_for('suppliers.ajax_add_supplier') }}", {
                 method: 'POST', body: formData
             }).then(res => res.json()).then(data => {
                 if(data.success) {
@@ -327,13 +329,13 @@
             const factor = document.getElementById('quick_conversion_factor').value;
 
             if(!name) return;
-            const formData = new FormData();
+            const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
             formData.append('material_name', name);
             formData.append('base_unit', baseUnit);
             formData.append('import_unit', importUnit);
             formData.append('import_conversion_factor', factor);
 
-            fetch("{{ url_for('ajax_add_material') }}", {
+            fetch("{{ url_for('inventory.ajax_add_material') }}", {
                 method: 'POST', body: formData
             }).then(res => res.json()).then(data => {
                 if(data.success) {

@@ -7,7 +7,8 @@
         <small>💡 Nhập số <strong>Âm (ví dụ -10)</strong> để xuất hủy/hư hỏng. Nhập số <strong>Dương (ví dụ 5)</strong> nếu kiểm kho thấy thừa.</small>
     </div>
 
-    <form action="{{ url_for('submit_adjustment_slip') }}" method="POST">
+    <form action="{{ url_for('inventory.submit_adjustment_slip') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="container">
             <div class="row mb-4 bg-light p-3 rounded shadow-sm">
                 <div class="col-md-4">
@@ -128,7 +129,7 @@
                             <td>{{ slip.adjustment_date }}</td>
                             <td>{{ slip.materials_summary or 'Không có chi tiết' }}</td>
                             <td class="text-center">
-                                <a href="{{ url_for('view_adjustment_slip', id=slip.id) }}" class="btn btn-sm btn-info text-white fw-bold">
+                                <a href="{{ url_for('inventory.view_adjustment_slip', id=slip.id) }}" class="btn btn-sm btn-info text-white fw-bold">
                                     <i class="fas fa-eye"></i> Xem / Sửa
                                 </a>
                             </td>

@@ -8,6 +8,7 @@
 
     <h2>Thêm Phiếu Điều chỉnh (Hao phí, Kẹt giấy, Kiểm kho)</h2>
     <form action="/add_adjustment" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="mb-3">
             <label for="material_id" class="form-label">Chọn Vật tư:</label><br>
             <select id="material_id" name="material_id" class="form-control" required>

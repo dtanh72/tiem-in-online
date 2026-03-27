@@ -4,7 +4,8 @@
 {% block content %}
     <h1>Tạo Báo giá Mới</h1>
 
-    <form action="{{ url_for('submit_quote') }}" method="POST">
+    <form action="{{ url_for('quotes.submit_quote') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="container">
             <div class="row mb-3 bg-light p-3 rounded shadow-sm">
                 <div class="col-md-6">
@@ -50,8 +51,11 @@
                         <p class="mb-1">Tiền thuế: <span id="tax_amount">0</span> vnđ</p>
                         
                         <div class="input-group input-group-sm mt-2">
-						<input type="text" id="coupon_code_input" class="form-control" placeholder="Nhập mã KM">
-						<button class="btn btn-outline-secondary" type="button" id="applyCouponBtn">Áp dụng</button>
+                            <input type="text" id="coupon_code_input" class="form-control" placeholder="Nhập mã KM">
+                            <button class="btn btn-outline-secondary" type="button" id="applyCouponBtn">Áp dụng</button>
+                            <button class="btn btn-outline-danger" type="button" id="cancelCouponBtn" style="display: none;">
+                                <i class="fas fa-times"></i> Hủy mã
+                            </button>
 						</div>
 						<div id="coupon_message" class="small mt-1"></div>
 						<div class="mt-2">
@@ -130,25 +134,29 @@
             </td>
 
             <td>
-			
-                <div class="input-group input-group-sm">
-                    <input type="number" class="form-control qty-input qty-l1" value="1" min="1" placeholder="1">
-                    <span class="input-group-text u1-label">...</span>
-                </div>
-                
-                <div class="input-group input-group-sm qty-wrapper-l2 mt-1" style="display:none;">
-                    <span class="input-group-text">x</span>
-                    <input type="number" class="form-control qty-input qty-l2" value="1" min="1">
-                    <span class="input-group-text u2-label">...</span>
-                </div>
+				<div class="qty-container d-flex gap-2">
+					<div class="input-group input-group-sm">
+						<input type="number" class="form-control qty-input qty-l1" value="1" min="1" placeholder="1">
+						<span class="input-group-text u1-label">...</span>
+					</div>
+					
+					<div class="input-group input-group-sm qty-wrapper-l2 mt-1" style="display:none;">
+						<span class="input-group-text">x</span>
+						<input type="number" class="form-control qty-input qty-l2" value="1" min="1">
+						<span class="input-group-text u2-label">...</span>
+					</div>
 
-                <div class="input-group input-group-sm qty-wrapper-l3 mt-1" style="display:none;">
-                    <span class="input-group-text">x</span>
-                    <input type="number" class="form-control qty-input qty-l3" value="1" min="1">
-                    <span class="input-group-text u3-label">...</span>
-                </div>
+					<div class="input-group input-group-sm qty-wrapper-l3 mt-1" style="display:none;">
+						<span class="input-group-text">x</span>
+						<input type="number" class="form-control qty-input qty-l3" value="1" min="1">
+						<span class="input-group-text u3-label">...</span>
+					</div>
+				</div>
                 
                 <input type="hidden" name="quantity[]" class="final-qty" value="1">
+                <input type="hidden" name="qty_l1[]" class="h-qty-l1" value="1">
+                <input type="hidden" name="qty_l2[]" class="h-qty-l2" value="1">
+                <input type="hidden" name="qty_l3[]" class="h-qty-l3" value="1">
                 <div class="text-muted small text-end mt-1">Tổng: <span class="total-qty-display fw-bold">1</span> <span class="base-unit-display"></span></div>
             </td>
 
@@ -210,7 +218,8 @@
 	</div>
 
     <script>
-		let currentDiscount = 0;
+		// 🟢 BIẾN TOÀN CỤC LƯU TRỮ DỮ LIỆU MÃ KHUYẾN MÃI
+		let currentCoupon = null;
 	
         document.addEventListener('DOMContentLoaded', function() {
 		
@@ -218,7 +227,6 @@
 			const customerSelect = document.getElementById('customer_id');
 			const infoBox = document.getElementById('customer_info_box');
 			
-			// Các thẻ span hiển thị
 			const infoPhone = document.getElementById('info_phone');
 			const infoCompany = document.getElementById('info_company');
 			const infoTax = document.getElementById('info_tax');
@@ -227,31 +235,29 @@
 			const rowCompany = document.getElementById('row_company');
 			const rowTax = document.getElementById('row_tax');
 
-			customerSelect.addEventListener('change', function() {
+			// Init Select2 for customer
+			$('#customer_id').select2({
+				theme: 'bootstrap-5',
+				width: '100%'
+			});
+
+			$('#customer_id').on('change', function() {
 				const opt = this.options[this.selectedIndex];
-				
 				if (this.value) {
-					// Lấy dữ liệu từ data attributes
 					const phone = opt.getAttribute('data-phone');
-					const email = opt.getAttribute('data-email'); // Có thể hiển thị nếu muốn
 					const address = opt.getAttribute('data-address');
 					const company = opt.getAttribute('data-company');
 					const tax = opt.getAttribute('data-tax');
 
-					// Điền dữ liệu
 					infoPhone.textContent = phone || '---';
 					infoAddress.textContent = address || '---';
 					infoCompany.textContent = company;
 					infoTax.textContent = tax;
 
-					// Ẩn/Hiện dòng Công ty & MST nếu không có dữ liệu cho gọn
 					rowCompany.style.display = company ? 'block' : 'none';
 					rowTax.style.display = tax ? 'block' : 'none';
-
-					// Hiện khung
 					infoBox.style.display = 'block';
 				} else {
-					// Ẩn khung nếu chưa chọn
 					infoBox.style.display = 'none';
 				}
 			});
@@ -261,15 +267,19 @@
             const templateRow = document.getElementById('service_row_template');
             const taxRateInput = document.getElementById('tax_rate');
             
-            // 1. HÀM TẠO DÒNG MỚI
             function addNewServiceRow() {
                 const newRow = templateRow.cloneNode(true);
                 newRow.id = '';
+                newRow.classList.add('service-row');
                 tableBody.appendChild(newRow);
                 attachRowListeners(newRow);
+
+                $(newRow).find('.service_select').select2({
+                    theme: 'bootstrap-5',
+                    width: '100%'
+                });
             }
             
-            // 2. GẮN SỰ KIỆN & LOGIC ĐA TẦNG (FIXED)
             function attachRowListeners(row) {
                 const serviceSelect = row.querySelector('.service_select');
                 const priceInput = row.querySelector('.price_input');
@@ -290,9 +300,13 @@
 
                 function updateRowQuantity() {
                     const v1 = parseFloat(qtyL1.value) || 0;
-                    // Nếu wrap ẩn thì coi như nhân 1, nếu hiện thì lấy giá trị
                     const v2 = (wrapL2.style.display !== 'none') ? (parseFloat(qtyL2.value) || 1) : 1;
                     const v3 = (wrapL3.style.display !== 'none') ? (parseFloat(qtyL3.value) || 1) : 1;
+                    
+                    // THÊM 3 DÒNG NÀY ĐỂ ĐỔ DỮ LIỆU VÀO Ô ẨN
+                    row.querySelector('.h-qty-l1').value = v1;
+                    row.querySelector('.h-qty-l2').value = v2;
+                    row.querySelector('.h-qty-l3').value = v3;
                     
                     const total = v1 * v2 * v3;
                     finalQtyInput.value = total;
@@ -300,7 +314,7 @@
                     updateCalculations();
                 }
 
-                serviceSelect.addEventListener('change', function() {
+                $(serviceSelect).on('change', function() {
                     const opt = this.options[this.selectedIndex];
                     const u1 = opt.getAttribute('data-u1') || '';
                     const u2 = opt.getAttribute('data-u2') || '';
@@ -312,7 +326,6 @@
                     lblU1.textContent = u1;
                     baseUnitDisplay.textContent = u1;
 
-                    // Logic hiển thị Tầng 2
                     if (u2 && u2.trim() !== '') { 
                         wrapL2.style.display = 'flex'; 
                         lblU2.textContent = u2; 
@@ -321,7 +334,6 @@
                         qtyL2.value = 1; 
                     }
 
-                    // Logic hiển thị Tầng 3
                     if (u3 && u3.trim() !== '') { 
                         wrapL3.style.display = 'flex'; 
                         lblU3.textContent = u3; 
@@ -339,33 +351,87 @@
                 priceInput.addEventListener('input', updateCalculations);
             }
             
-            // 3. TÍNH TỔNG TIỀN (BAO GỒM DISCOUNT)
+            // 3. HÀM TÍNH TOÁN (ĐÃ CẬP NHẬT LOGIC KIỂM TRA MÃ THÔNG MINH)
             function updateCalculations() {
                 let subTotal = 0;
+                let targetServiceQty = 0;   
+                let targetServiceTotal = 0;
+
                 const allRows = tableBody.querySelectorAll('tr');
                 allRows.forEach(function(row) {
                     const quantity = parseFloat(row.querySelector('.final-qty').value) || 0;
                     const price = parseFloat(row.querySelector('.price_input').value) || 0;
                     const lineTotal = quantity * price;
-                    row.querySelector('.line_total_display').value = lineTotal.toLocaleString('vi-VN');
+
+                    const serviceSelect = row.querySelector('.service_select');
+                    const serviceId = serviceSelect ? parseInt(serviceSelect.value) : null;
+
+                    if(row.querySelector('.line_total_display')) {
+                        row.querySelector('.line_total_display').value = lineTotal.toLocaleString('vi-VN');
+                    }
                     subTotal += lineTotal;
+
+                    // Gom số lượng/thành tiền nếu mã áp dụng riêng cho dịch vụ này
+                    if (currentCoupon && currentCoupon.applicable_service_id == serviceId) {
+                        targetServiceQty += quantity;
+                        targetServiceTotal += lineTotal;
+                    }
                 });
                 
                 const taxRate = parseFloat(taxRateInput.value) || 0;
                 const taxAmount = subTotal * (taxRate / 100);
-                
-                // Tính giảm giá
                 let totalWithTax = subTotal + taxAmount;
-                let actualDiscount = currentDiscount;
-                if(actualDiscount > totalWithTax) actualDiscount = totalWithTax;
+                
+                // 🟢 TÍNH TOÁN GIẢM GIÁ
+                let finalDiscount = 0;
+                const msgDiv = document.getElementById('coupon_message');
 
-                const grandTotal = totalWithTax - actualDiscount;
+                if (currentCoupon) {
+                    if (currentCoupon.applicable_service_id) {
+                        if (targetServiceQty >= currentCoupon.min_service_quantity) {
+                            if (currentCoupon.discount_type === 'percent') {
+                                finalDiscount = targetServiceTotal * (currentCoupon.discount_value / 100);
+                            } else {
+                                finalDiscount = currentCoupon.discount_value;
+                            }
+                            if(msgDiv) {
+                                msgDiv.className = 'small mt-1 text-success fw-bold';
+                                msgDiv.innerHTML = `<i class="fas fa-check-circle"></i> Đã áp dụng mã cho Dịch vụ (SL hiện tại: ${targetServiceQty})`;
+                            }
+                        } else {
+                            if(msgDiv) {
+                                msgDiv.className = 'small mt-1 text-danger';
+                                msgDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Mã yêu cầu tối thiểu ${currentCoupon.min_service_quantity} dịch vụ này (Hiện có: ${targetServiceQty}).`;
+                            }
+                        }
+                    } else {
+                        if (subTotal >= currentCoupon.min_order_value) {
+                            if (currentCoupon.discount_type === 'percent') {
+                                finalDiscount = subTotal * (currentCoupon.discount_value / 100);
+                            } else {
+                                finalDiscount = currentCoupon.discount_value;
+                            }
+                            if(msgDiv) {
+                                msgDiv.className = 'small mt-1 text-success fw-bold';
+                                msgDiv.innerHTML = `<i class="fas fa-check-circle"></i> Đã áp dụng mã cho Toàn báo giá!`;
+                            }
+                        } else {
+                            if(msgDiv) {
+                                msgDiv.className = 'small mt-1 text-danger';
+                                msgDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Báo giá chưa đạt mức tối thiểu ${currentCoupon.min_order_value.toLocaleString('vi-VN')}đ.`;
+                            }
+                        }
+                    }
+                }
+
+                if(finalDiscount > totalWithTax) finalDiscount = totalWithTax;
+                const grandTotal = totalWithTax - finalDiscount;
                 
                 document.getElementById('sub_total').textContent = subTotal.toLocaleString('vi-VN');
                 document.getElementById('tax_amount').textContent = taxAmount.toLocaleString('vi-VN');
                 
-                document.getElementById('discount_display').textContent = actualDiscount.toLocaleString('vi-VN');
-                document.getElementById('final_discount_amount').value = actualDiscount;
+                document.getElementById('discount_display').textContent = finalDiscount.toLocaleString('vi-VN');
+                document.getElementById('final_discount_amount').value = finalDiscount;
 
                 document.getElementById('grand_total').textContent = grandTotal.toLocaleString('vi-VN');
             }
@@ -378,38 +444,73 @@
             
             addBtn.addEventListener('click', addNewServiceRow);
             taxRateInput.addEventListener('change', updateCalculations);
-            addNewServiceRow(); // Thêm dòng đầu tiên
-			
-			// 4. XỬ LÝ NÚT ÁP DỤNG MÃ
-            document.getElementById('applyCouponBtn').addEventListener('click', function() {
-                const code = document.getElementById('coupon_code_input').value;
+            addNewServiceRow(); 
+
+			// 4. XỬ LÝ NÚT ÁP DỤNG & HỦY MÃ
+            const applyCouponBtn = document.getElementById('applyCouponBtn');
+            const cancelCouponBtn = document.getElementById('cancelCouponBtn');
+            const couponInput = document.getElementById('coupon_code_input');
+            const msgDiv = document.getElementById('coupon_message');
+
+            applyCouponBtn.addEventListener('click', function() {
+                const code = couponInput.value;
                 const subTotalText = document.getElementById('sub_total').textContent.replace(/\./g, '').replace(/,/g, '');
                 const currentTotal = parseFloat(subTotalText) || 0;
 
                 if (!code) return;
 
-                const formData = new FormData();
+                const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
                 formData.append('code', code);
                 formData.append('order_total', currentTotal);
 
-                fetch("{{ url_for('check_coupon') }}", { method: 'POST', body: formData })
+                applyCouponBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>...';
+
+                fetch("{{ url_for('coupons.check_coupon') }}", { method: 'POST', body: formData })
                 .then(res => res.json())
                 .then(data => {
-                    const msgDiv = document.getElementById('coupon_message');
                     if (data.valid) {
-                        msgDiv.className = 'small mt-1 text-success';
-                        msgDiv.textContent = data.message;
-                        currentDiscount = data.discount_amount;
+                        // LƯU TOÀN BỘ DATA CỦA MÃ
+                        currentCoupon = {
+                            code: data.code,
+                            discount_type: data.discount_type,
+                            discount_value: parseFloat(data.discount_value),
+                            min_order_value: parseFloat(data.min_order_value || 0),
+                            applicable_service_id: data.applicable_service_id,
+                            min_service_quantity: parseInt(data.min_service_quantity || 0)
+                        };
+
                         document.getElementById('final_coupon_code').value = data.code;
+                        
+                        couponInput.readOnly = true;
+                        applyCouponBtn.style.display = 'none';
+                        cancelCouponBtn.style.display = 'block';
+                        
                         updateCalculations();
                     } else {
                         msgDiv.className = 'small mt-1 text-danger';
-                        msgDiv.textContent = data.message;
-                        currentDiscount = 0;
+                        msgDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.message}`;
+                        currentCoupon = null;
                         document.getElementById('final_coupon_code').value = '';
                         updateCalculations();
                     }
+                })
+                .finally(() => {
+                    applyCouponBtn.textContent = 'Áp dụng';
                 });
+            });
+
+            cancelCouponBtn.addEventListener('click', function() {
+                currentCoupon = null; // Xóa sổ mã đang dùng
+                document.getElementById('final_coupon_code').value = '';
+                
+                couponInput.value = '';
+                couponInput.readOnly = false;
+                msgDiv.textContent = '';
+                
+                cancelCouponBtn.style.display = 'none';
+                applyCouponBtn.style.display = 'block';
+                
+                updateCalculations(); // Tính lại tiền
             });
 
             // 5. AJAX THÊM KHÁCH
@@ -417,11 +518,11 @@
                 const name = document.getElementById('quick_customer_name').value;
                 const phone = document.getElementById('quick_customer_phone').value;
                 if (!name) return;
-                const formData = new FormData(); formData.append('customer_name', name); formData.append('phone', phone);
-                fetch("{{ url_for('ajax_add_customer') }}", { method: 'POST', body: formData }).then(r=>r.json()).then(d=>{
+                const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}'); formData.append('customer_name', name); formData.append('phone', phone);
+                fetch("{{ url_for('customers.ajax_add_customer') }}", { method: 'POST', body: formData }).then(r=>r.json()).then(d=>{
                     if(d.success){
-                        const opt = document.createElement('option'); opt.value=d.new_id; opt.text=d.new_name; opt.selected=true;
-                        document.getElementById('customer_id').appendChild(opt);
+                        const opt = new Option(d.new_name, d.new_id, true, true);
+                        $('#customer_id').append(opt).trigger('change');
                         bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal')).hide();
                     } else alert(d.error);
                 });
@@ -429,57 +530,45 @@
 
             // 6. AJAX THÊM DỊCH VỤ
             document.getElementById('saveQuickService').addEventListener('click', function() {
-				// 1. Lấy dữ liệu
 				const name = document.getElementById('qs_name').value;
 				const price = document.getElementById('qs_price').value;
 				const u1 = document.getElementById('qs_unit').value;
-				const u2 = document.getElementById('qs_unit2').value; // Mới
-				const u3 = document.getElementById('qs_unit3').value; // Mới
+				const u2 = document.getElementById('qs_unit2').value; 
+				const u3 = document.getElementById('qs_unit3').value; 
 				
 				if(!name || !u1) return alert("Vui lòng nhập Tên và Đơn vị cơ sở!");
 
-				const formData = new FormData();
+				const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
 				formData.append('service_name', name);
 				formData.append('base_price', price);
 				formData.append('unit', u1);
-				formData.append('unit_level2', u2); // Gửi thêm
-				formData.append('unit_level3', u3); // Gửi thêm
+				formData.append('unit_level2', u2); 
+				formData.append('unit_level3', u3); 
 
-				// 2. Gửi AJAX
-				fetch("{{ url_for('ajax_add_service') }}", {
-					method: 'POST',
-					body: formData
-				})
+				fetch("{{ url_for('services.ajax_add_service') }}", { method: 'POST', body: formData })
 				.then(res => res.json())
 				.then(data => {
 					if(data.success) {
-						// 3. Tạo option mới với đầy đủ data attributes
 						const opt = document.createElement('option');
 						opt.value = data.new_id;
 						opt.text = data.new_name;
 						opt.selected = true;
 						
-						// QUAN TRỌNG: Cập nhật đầy đủ thông tin đơn vị vào thẻ option
 						opt.setAttribute('data-price', data.new_price);
 						opt.setAttribute('data-u1', data.new_u1);
 						opt.setAttribute('data-u2', data.new_u2);
 						opt.setAttribute('data-u3', data.new_u3);
 						
-						// 4. Cập nhật vào tất cả các dropdown đang có
-						// (Nếu ở trang định mức thì ID là 'service_id', nếu ở trang đơn hàng thì class là '.service_select')
 						const singleSelect = document.getElementById('service_id');
 						if (singleSelect) {
-							singleSelect.appendChild(opt);
-							// Kích hoạt sự kiện change để cập nhật giao diện ngay
-							singleSelect.dispatchEvent(new Event('change'));
+							$(singleSelect).append(opt.cloneNode(true)).trigger('change');
 						}
 						
 						const listSelects = document.querySelectorAll('.service_select');
 						if (listSelects.length > 0) {
-							listSelects.forEach(s => s.appendChild(opt.cloneNode(true)));
+							listSelects.forEach(s => $(s).append(opt.cloneNode(true)));
 						}
 
-						// 5. Đóng modal & Reset
 						bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal')).hide();
 						document.getElementById('quickAddServiceForm').reset();
 						
@@ -488,15 +577,6 @@
 					}
 				});
 			});
-			
-			// === 7. HÀM CHỌN MÃ TỪ DANH SÁCH GỢI Ý ===
-			function selectCoupon(code) {
-				// 1. Điền mã vào ô input
-				document.getElementById('coupon_code_input').value = code;
-				
-				// 2. Tự động kích hoạt sự kiện click của nút Áp dụng
-				document.getElementById('applyCouponBtn').click();
-			}
         });
     </script>
 {% endblock %}

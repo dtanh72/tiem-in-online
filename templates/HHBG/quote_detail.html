@@ -5,7 +5,10 @@
 {% block content %}
 
     <h1>Chi tiết Báo Giá #{{ quote_info.quote_id }}</h1>
-    <a href="{{ url_for('quotes_history_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Lịch sử</a>
+    <div class="mb-3 d-flex gap-2">
+        <a href="{{ url_for('quotes.quotes_history_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Lịch sử</a>
+        <a href="{{ url_for('quotes.print_quote_page', quote_id=quote_info.quote_id) }}" target="_blank" class="btn btn-sm btn-info text-dark fw-bold"><i class="fas fa-print"></i> In / Xuất PDF</a>
+    </div>
 
     <div class="mb-3">
         <div class="mb-3">
@@ -37,8 +40,9 @@
 		
         {% if quote_info.status != 'accepted' %}
         <div class="mb-3">
-            <form action="{{ url_for('update_quote_status', quote_id=quote_info.quote_id) }}" method="POST"
+            <form action="{{ url_for('quotes.update_quote_status', quote_id=quote_info.quote_id) }}" method="POST"
 					class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 					
 				<h2>Trạng thái Báo giá</h2>
                 <p>Trạng thái hiện tại: <strong>{{ quote_info.status }}</strong></p>
@@ -59,8 +63,9 @@
 		
 		{% if quote_info.status == 'accepted' %}
         <div class="mb-3">
-            <form action="{{ url_for('convert_quote_to_order', quote_id=quote_info.quote_id) }}" method="POST"
+            <form action="{{ url_for('quotes.convert_quote_to_order', quote_id=quote_info.quote_id) }}" method="POST"
 					class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 				<h2>Chuyển đổi</h2>
 				<p>Chuyển báo giá này thành một Đơn hàng mới. <br>
 				   <strong>(Lưu ý: Hành động này sẽ TRỪ KHO vật tư!)</strong></p>

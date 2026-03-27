@@ -6,6 +6,7 @@
     <h1>Thiết lập Định mức (Công thức)</h1>
 
     <form action="/add_service_material" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="container">
             
             <div class="row mb-3 bg-light p-3 rounded shadow-sm">
@@ -92,6 +93,7 @@
                                 <td class="text-end">{{ item.estimated_cost|currency }}</td>
                                 <td class="text-end">
                                     <form action="/delete_service_material/{{ item.service_material_id }}" method="POST" style="display:inline;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                         <button type="submit" class="btn btn-sm text-danger p-0 border-0" onclick="return confirm('Xóa?');">✖</button>
                                     </form>
                                 </td>
@@ -302,7 +304,7 @@
 			
             if(!name || !u1) return alert("Vui lòng nhập Tên và Đơn vị cơ sở!");
 			
-            const formData = new FormData();
+            const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
             formData.append('service_name', name); 
 			formData.append('base_price', price); 
 			formData.append('unit', u1);
@@ -310,7 +312,7 @@
 			formData.append('unit_level3', u3); // Gửi thêm
             
 			// 2. Gửi AJAX
-			fetch("{{ url_for('ajax_add_service') }}", { 
+			fetch("{{ url_for('services.ajax_add_service') }}", { 
 					method: 'POST', 
 					body: formData 
 					})
@@ -365,10 +367,10 @@
             const imp = document.getElementById('qm_import').value;
             const factor = document.getElementById('qm_factor').value;
             if(!name) return;
-            const formData = new FormData();
+            const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
             formData.append('material_name', name); formData.append('base_unit', base); formData.append('import_unit', imp); formData.append('import_conversion_factor', factor);
             
-            fetch("{{ url_for('ajax_add_material') }}", { method: 'POST', body: formData }).then(res => res.json()).then(data => {
+            fetch("{{ url_for('inventory.ajax_add_material') }}", { method: 'POST', body: formData }).then(res => res.json()).then(data => {
                 if(data.success) {
                     const newOption = document.createElement('option');
                     newOption.value = data.new_id; newOption.text = data.new_name;

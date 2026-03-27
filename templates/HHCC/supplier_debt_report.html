@@ -34,8 +34,9 @@
 					<td>{{ item.payment_status }}</td>
 					
 					<td>
-						<form action="{{ url_for('pay_supplier_bill') }}" method="POST" style="display:inline;"
+						<form action="{{ url_for('suppliers.pay_supplier_bill') }}" method="POST" style="display:inline;"
 							  onsubmit="return confirm('Bạn có chắc chắn đã thanh toán khoản này?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 							
 							<input type="hidden" name="bill_id" value="{{ item.id }}">
 							<input type="hidden" name="bill_source" value="{{ item.source }}">

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Báo Giá #{{ quote_info.quote_id }}</title>
+    <!-- Thiết lập kích thước A4 cho việc in -->
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm 20mm;
+        }
+        body {
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+            font-size: 14pt;
+            line-height: 1.5;
+            color: #000;
+            background-color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header-logo img {
+            max-width: 250px;
+            height: auto;
+        }
+        .header-info {
+            text-align: right;
+            font-size: 10pt;
+        }
+        .header-info strong {
+            font-size: 12pt;
+        }
+        
+        .title-section {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .title-section h1 {
+            color: #008000;
+            font-size: 26pt;
+            margin: 0 0 5px 0;
+            text-transform: uppercase;
+        }
+        .title-section .subtitle {
+            font-weight: bold;
+            font-style: italic;
+            text-decoration: underline;
+            font-size: 15pt;
+        }
+        
+        .greeting {
+            font-style: italic;
+            margin-bottom: 15px;
+        }
+        
+        table.quote-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        table.quote-table th, table.quote-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            vertical-padding: middle;
+        }
+        table.quote-table th {
+            background-color: #d9ead3 !important; /* Xanh nhạt */
+            -webkit-print-color-adjust: exact;
+            color-adjust: exact;
+            text-align: center;
+            font-weight: bold;
+        }
+        table.quote-table td.text-center { text-align: center; }
+        table.quote-table td.text-right { text-align: right; }
+        table.quote-table td.text-left { text-align: left; }
+        
+        .total-row td {
+            font-weight: bold;
+        }
+        .total-amount {
+            color: #ff0000;
+        }
+
+        .amount-in-words {
+            font-style: italic;
+            margin-bottom: 20px;
+        }
+        
+        .notes-section {
+            margin-bottom: 20px;
+        }
+        .notes-section h4 {
+            margin: 0 0 5px 0;
+            text-decoration: underline;
+            font-size: 14pt;
+        }
+        .notes-section ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        .notes-section ul li {
+            margin-bottom: 5px;
+            list-style-type: square;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        .signature-box {
+            text-align: center;
+            width: 300px;
+        }
+        .signature-box .date-text {
+            font-style: italic;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .signature-box .sign-title {
+            font-weight: bold;
+            margin-bottom: 80px; /* Chừa chỗ ký/đóng dấu */
+        }
+        
+        /* Ẩn các nút Control khi đang in */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
+        
+        .controls {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .btn-print {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-print:hover {
+            background-color: #0b5ed7;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="controls no-print">
+        <button class="btn-print" onclick="window.print()">🖨️ In / Xuất PDF (Nhấn Ctrl+P)</button>
+        <p style="margin-top: 10px; font-size: 12px; color: #666;">Mẹo: Ở hộp thoại In, hãy chọn Khổ giấy A4 và đánh dấu vào Tùy chọn "Đồ họa nền" (Background graphics) nếu bị mất màu viền xanh bảng.</p>
+    </div>
+
+    <!-- BẮT ĐẦU VÙNG IN KHỔ A4 -->
+    <div class="header" style="border: none; padding-bottom: 0; display: block; text-align: center;">
+        <img src="{{ url_for('static', filename='img/header_bao_gia.png') }}" alt="Header Báo Giá" style="width: 100%; max-width: 100%; height: auto;">
+    </div>
+
+    <div class="title-section">
+        <h1>BẢNG BÁO GIÁ</h1>
+        <div class="subtitle">Kính gửi: {{ quote_info.company_name or quote_info.customer_name }}</div>
+    </div>
+
+    <div class="greeting">
+        Cơ sở chúng tôi trân trọng báo giá đến quý khách hàng bảng báo giá như sau:
+    </div>
+
+    <table class="quote-table">
+        <thead>
+            <tr>
+                <th width="5%">STT</th>
+                <th width="40%">NỘI DUNG</th>
+                <th width="10%">ĐVT</th>
+                <th width="15%">SỐ<br>LƯỢNG</th>
+                <th width="15%">ĐƠN GIÁ<br>(VNĐ/ĐVT)</th>
+                <th width="15%">THÀNH TIỀN<br>(VNĐ)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in quote_items %}
+            <tr>
+                <td class="text-center">{{ loop.index }}</td>
+                <td class="text-left">
+                    {{ item.service_name }}<br>
+                    {% if item.description %}
+                    <span style="font-size: 12pt;">- {{ item.description }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">{{ item.unit }}</td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-center">{{ item.unit_price | currency }}</td>
+                <td class="text-right">{{ item.line_total | currency }}</td>
+            </tr>
+            {% endfor %}
+            <tr class="total-row">
+                <td colspan="5" class="text-center">TỔNG</td>
+                <td class="text-right total-amount">{{ quote_info.total_amount | currency }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="amount-in-words">
+        Bằng chữ: {{ amount_in_words }}
+    </div>
+
+    <div class="notes-section">
+        <h4>LƯU Ý:</h4>
+        <ul>
+            {% if quote_info.tax_rate > 0 %}
+            <li>Mức giá trên chưa gồm thuế xuất hóa đơn điện tử {{ quote_info.tax_rate|int }}%.</li>
+            {% else %}
+            <li>Mức giá trên chưa gồm thuế xuất hóa đơn điện tử 10%.</li>
+            {% endif %}
+            <li>Báo giá này chỉ có hiệu lực trong 03 tháng kể từ ngày báo giá.</li>
+            {% if quote_info.notes %}
+            <li>{{ quote_info.notes }}</li>
+            {% endif %}
+        </ul>
+    </div>
+
+    <div style="font-style: italic;">
+        Trân trọng cảm ơn!
+    </div>
+
+    <div class="footer">
+        <div class="signature-box">
+            <!-- Lấy ngày hiện tại -->
+            <div class="date-text">
+                {{ date_str }}
+            </div>
+            <div class="sign-title">Người lập</div>
+            
+            <!-- Khoảng trống chữ ký, sau này có thể để tag <img> mộc đỏ -->
+            <div>
+                <strong>{{ current_user.full_name }}</strong>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Khởi chạy cửa sổ in ngay khi trang tải xong
+        window.onload = function() {
+            // setTimeout(() => { window.print(); }, 500); 
+            // Nếu muốn tự động bật hộp thoại in thì bỏ comment dòng trên.
+        };
+    </script>
+</body>
+</html>

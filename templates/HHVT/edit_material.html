@@ -6,6 +6,7 @@
     <h1>Sửa Vật tư: {{ material.material_name }}</h1>
 
     <form action="/update_material" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <input type="hidden" name="material_id" value="{{ material.material_id }}">
         <div class="mb-3">
             <label class="form-label">Tên Vật tư:</label><br>
@@ -45,7 +46,7 @@
         
 		<button type="submit" class="btn btn-primary">Cập nhật Vật tư</button>
     </form>
-    <a href="{{ url_for('materials_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
+    <a href="{{ url_for('inventory.materials_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
 	
 	<script>
 		function toggleLifespanField() {

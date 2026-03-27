@@ -47,7 +47,7 @@
                         </div>
                         <div class="text-info opacity-50"><i class="fas fa-hand-holding-usd fa-2x"></i></div>
                     </div>
-                    <a href="{{ url_for('customer_debt_report') }}" class="text-info small text-decoration-none fw-bold">Xem chi tiết <i class="fas fa-arrow-right"></i></a>
+                    <a href="{{ url_for('customers.customer_debt_report') }}" class="text-info small text-decoration-none fw-bold">Xem chi tiết <i class="fas fa-arrow-right"></i></a>
                 </div>
             </div>
         </div>
@@ -62,7 +62,7 @@
                         </div>
                         <div class="text-warning opacity-50"><i class="fas fa-file-invoice-dollar fa-2x"></i></div>
                     </div>
-                    <a href="{{ url_for('supplier_debt_report') }}" class="text-warning small text-decoration-none fw-bold">Xem chi tiết <i class="fas fa-arrow-right"></i></a>
+                    <a href="{{ url_for('suppliers.supplier_debt_report') }}" class="text-warning small text-decoration-none fw-bold">Xem chi tiết <i class="fas fa-arrow-right"></i></a>
                 </div>
             </div>
         </div>
@@ -122,6 +122,19 @@
                             <div class="small text-muted">(Hôm nay)</div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12 mb-3">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white border-bottom-0 pt-3">
+                    <h6 class="fw-bold text-secondary text-uppercase mb-0"><i class="fas fa-chart-bar text-primary"></i> Biểu đồ Doanh thu (6 tháng gần nhất)</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart" style="max-height: 350px;"></canvas>
                 </div>
             </div>
         </div>
@@ -240,7 +253,7 @@
                                     <td class="text-start">{{ quote.customer_name }}</td>
                                     <td class="fw-bold">{{ quote.total_amount|currency }} đ</td>
                                     <td>
-                                        <a href="{{ url_for('quote_detail_page', quote_id=quote.quote_id) }}" class="btn btn-sm btn-outline-secondary">Xem lại</a>
+                                        <a href="{{ url_for('quotes.quote_detail_page', quote_id=quote.quote_id) }}" class="btn btn-sm btn-outline-secondary">Xem lại</a>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -267,9 +280,49 @@
             
             // 2. Gắn vào màn hình
             document.getElementById('last_update_time').innerText = timeString;
+
+            // 3. Khởi tạo Biểu đồ Doanh thu (Chart.js)
+            const ctx = document.getElementById('revenueChart').getContext('2d');
+            const revenueChart = new Chart(ctx, {
+                type: 'bar', // Cột
+                data: {
+                    labels: {{ monthly_labels|tojson|safe }},
+                    datasets: [{
+                        label: 'Doanh thu (VNĐ)',
+                        data: {{ monthly_revenue|tojson|safe }},
+                        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString('vi-VN') + ' đ';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.parsed.y.toLocaleString('vi-VN') + ' đ';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         });
 
-        // 3. Tự động tải lại trang sau mỗi 3 phút (180,000 milliseconds)
+        // Tự động tải lại trang sau mỗi 3 phút (180,000 milliseconds)
         setTimeout(function() {
             window.location.reload(1);
         }, 180000); 

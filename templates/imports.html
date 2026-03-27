@@ -8,6 +8,7 @@
 
     <h3>Thêm Phiếu Nhập Kho</h3>
     <form action="/add_import" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <div class="mb-3">
             <div class="mb-3"> <label for="material_id" class="form-label">Chọn Vật tư:</label><br>
     
@@ -159,14 +160,14 @@
 					return;
 				}
 				
-				const formData = new FormData();
+				const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
 				formData.append('material_name', nameInput.value);
 				formData.append('base_unit', baseUnitInput.value);
 				formData.append('import_unit', importUnitInput.value);
 				formData.append('import_conversion_factor', factorInput.value);
 				
 				// 1. Gửi AJAX đến route Python
-				fetch("{{ url_for('ajax_add_material') }}", {
+				fetch("{{ url_for('inventory.ajax_add_material') }}", {
 					method: 'POST',
 					body: formData
 				})

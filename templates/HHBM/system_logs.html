@@ -5,7 +5,7 @@
     <h1>Nhật ký Hoạt động (Audit Logs)</h1>
 
     <div class="card card-body bg-light mb-3">
-        <form method="GET" action="{{ url_for('system_logs_page') }}" class="row g-3 align-items-end">
+        <form method="GET" action="{{ url_for('system.system_logs_page') }}" class="row g-3 align-items-end">
             <div class="col-md-3">
 				<label class="form-label fw-bold">Từ ngày:</label>
 				<input type="date" id="filter_start" name="start_date" class="form-control" value="{{ start_date or '' }}">
@@ -19,7 +19,7 @@
                     🔍 Lọc
                 </button>
                 
-                <a href="{{ url_for('system_logs_page') }}" class="btn btn-outline-secondary">Xóa lọc</a>
+                <a href="{{ url_for('system.system_logs_page') }}" class="btn btn-outline-secondary">Xóa lọc</a>
 
                 <div class="vr"></div> <button type="submit" name="action" value="export" class="btn btn-success">
                     📥 Xuất CSV
@@ -31,7 +31,8 @@
             </div>
         </form>
         
-        <form id="clearLogForm" action="{{ url_for('clear_system_logs') }}" method="POST">
+        <form id="clearLogForm" action="{{ url_for('system.clear_system_logs') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 			<input type="hidden" name="start_date" id="hidden_start">
 			<input type="hidden" name="end_date" id="hidden_end">
 		</form>
@@ -79,7 +80,7 @@
     <nav>
         <ul class="pagination justify-content-center">
             <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('system_logs_page', page=current_page-1, start_date=start_date, end_date=end_date) }}">Trước</a>
+                <a class="page-link" href="{{ url_for('system.system_logs_page', page=current_page-1, start_date=start_date, end_date=end_date) }}">Trước</a>
             </li>
             
             <li class="page-item disabled">
@@ -87,7 +88,7 @@
             </li>
 
             <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-                <a class="page-link" href="{{ url_for('system_logs_page', page=current_page+1, start_date=start_date, end_date=end_date) }}">Sau</a>
+                <a class="page-link" href="{{ url_for('system.system_logs_page', page=current_page+1, start_date=start_date, end_date=end_date) }}">Sau</a>
             </li>
         </ul>
     </nav>

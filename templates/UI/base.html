@@ -4,8 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
+    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SweetAlert2 -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css" rel="stylesheet">
+    
+    <!-- DataTables -->
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <!-- Select2 -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    
+    <!-- jQuery (Needed for DataTables & Select2) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
     <title>{% block title %}Hệ thống Quản lý{% endblock %}</title>
 </head>
 <body>
@@ -15,7 +32,7 @@
 			<li class="nav-item"></li>
 			<div class="d-flex text-white align-items-center">
 				<span class="me-3">Xin chào, {{ current_user.full_name }} ({{ current_user.role_name }})</span>
-				<a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Đăng xuất</a>
+				<a href="{{ url_for('auth.logout') }}" class="btn btn-outline-light btn-sm">Đăng xuất</a>
 			</div>
 		</div>
 	</nav>
@@ -23,7 +40,7 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">		
 		
         <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard_page') }}">HHVLCS2</a>
+            <a class="navbar-brand" href="{{ url_for('dashboard.dashboard_page') }}">HHVLCS2</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -32,10 +49,10 @@
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 					{% if current_user.can('sale') %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('orders_history_page') }}">Lịch sử Đơn hàng</a>
+                        <a class="nav-link" href="{{ url_for('orders.orders_history_page') }}">Lịch sử Đơn hàng</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('quotes_history_page') }}">Quản lý Báo giá</a>
+                        <a class="nav-link" href="{{ url_for('quotes.quotes_history_page') }}">Quản lý Báo giá</a>
                     </li>
 					{% endif %}
 					
@@ -46,10 +63,10 @@
                         <ul class="dropdown-menu">
 							{% if current_user.can('inventory') %}
 							<li>
-								<a class="dropdown-item" href="{{ url_for('equipment_page') }}">Danh Mục TB</a>
+								<a class="dropdown-item" href="{{ url_for('equipment.equipment_page') }}">Danh Mục TB</a>
 							</li>
 							<li >
-								<a class="dropdown-item" href="{{ url_for('maintenance_history') }}">Lịch sử bảo trì</a>
+								<a class="dropdown-item" href="{{ url_for('equipment.maintenance_history') }}">Lịch sử bảo trì</a>
 							</li>
 							{% endif %}						
                         </ul>
@@ -62,10 +79,10 @@
                         </a>
                         <ul class="dropdown-menu">
 							{% if current_user.can('sale') or current_user.can('all') %}
-                            <li><a class="dropdown-item" href="{{ url_for('services_page') }}">Dịch vụ</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('customers_page') }}">Khách hàng</a></li>							
+                            <li><a class="dropdown-item" href="{{ url_for('services.services_page') }}">Dịch vụ</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('customers.customers_page') }}">Khách hàng</a></li>							
 							<li>
-								<a class="dropdown-item" href="{{ url_for('manage_outsource') }}">
+								<a class="dropdown-item" href="{{ url_for('outsource.manage_outsource') }}">
 									<i class="fas fa-industry text-info"></i> 
 									<span>Xưởng In Gia Công</span>
 								</a>
@@ -73,14 +90,14 @@
 							{% endif %}
 							
 							{% if current_user.can('inventory') or current_user.can('all') %}
-                            <li><a class="dropdown-item" href="{{ url_for('materials_page') }}">Vật tư</a></li>
-							<li><a class="dropdown-item" href="{{ url_for('suppliers_page') }}">Nhà Cung Cấp</a></li>													
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.materials_page') }}">Vật tư</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('suppliers.suppliers_page') }}">Nhà Cung Cấp</a></li>													
 							{% endif %}
 							{% if current_user.can('sale') or current_user.can('all') %}
-							<li><a class="dropdown-item" href="{{ url_for('coupons_page') }}">Mã Khuyến Mãi</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('coupons.coupons_page') }}">Mã Khuyến Mãi</a></li>
 							{% endif %}
 							{% if current_user.can('accounting') or current_user.can('all') %}
-							<li><a class="dropdown-item" href="{{ url_for('operating_expenses_page') }}">Chi Phí Vận Hành</a></li>
+							<li><a class="dropdown-item" href="{{ url_for('system.operating_expenses_page') }}">Chi Phí Vận Hành</a></li>
 							{% endif %}
                         </ul>
                     </li>
@@ -91,11 +108,11 @@
                         </a>
                         <ul class="dropdown-menu">
 							{% if current_user.can('inventory') %}
-                            <li><a class="dropdown-item" href="{{ url_for('create_import_page') }}">Nhập kho Vật tư (Mới)</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('create_adjustment_page') }}">Điều chỉnh Kho (Mới)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.create_import_page') }}">Nhập kho Vật tư (Mới)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('inventory.create_adjustment_page') }}">Điều chỉnh Kho (Mới)</a></li>
 							{% endif %}
 							{% if current_user.can('inventory') or current_user.can('sale') %}
-                            <li><a class="dropdown-item" href="{{ url_for('service_materials_page') }}">Định mức (Công thức)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('services.service_materials_page') }}">Định mức (Công thức)</a></li>
 							{% endif %}							
                         </ul>
                     </li>
@@ -106,25 +123,25 @@
                         </a>
                         <ul class="dropdown-menu">
 							{% if current_user.can('accounting') %}
-                            <li><a class="dropdown-item" href="{{ url_for('customer_debt_report') }}">Công nợ Khách hàng (Ai nợ mình)</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('supplier_debt_report') }}">Công nợ Nhà cung cấp (Mình nợ ai)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('customers.customer_debt_report') }}">Công nợ Khách hàng (Ai nợ mình)</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('suppliers.supplier_debt_report') }}">Công nợ Nhà cung cấp (Mình nợ ai)</a></li>
 							{% endif %}	
 							</ul>
                     </li>
                 </ul>
                 {% if current_user.can('sale') %}
-                <a href="{{ url_for('create_quote_page') }}" class="btn btn-outline-primary me-2">+ Tạo Báo giá</a>
-                <a href="{{ url_for('create_order_page') }}" class="btn btn-danger">+ Tạo Đơn hàng</a>
+                <a href="{{ url_for('quotes.create_quote_page') }}" class="btn btn-outline-primary me-2">+ Tạo Báo giá</a>
+                <a href="{{ url_for('orders.create_order_page') }}" class="btn btn-danger">+ Tạo Đơn hàng</a>
 				{% endif %}		
             </div>	
 			
 			{% if current_user.can('all') %}
 				<li class="nav-item" style="list-style: none;">
-					<a class="nav-link text-warning" href="{{ url_for('manage_users_page') }}">👥 Quản lý Users</a>
+					<a class="nav-link text-warning" href="{{ url_for('auth.manage_users_page') }}">👥 Quản lý Users</a>
 				</li>
 				
 				<li class="nav-item" style="list-style: none;">
-					<a class="nav-link text-info" href="{{ url_for('system_logs_page') }}">📜 Xem Logs</a>
+					<a class="nav-link text-info" href="{{ url_for('system.system_logs_page') }}">📜 Xem Logs</a>
 				</li>
 			{% endif %}
         </div>
@@ -139,6 +156,61 @@
 	
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Global Flash Messages via SweetAlert2 -->
+    <script>
+        $(document).ready(function() {
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        let iconType = 'info';
+                        if('{{ category }}' === 'success') iconType = 'success';
+                        if('{{ category }}' === 'danger' || '{{ category }}' === 'error') iconType = 'error';
+                        if('{{ category }}' === 'warning') iconType = 'warning';
+                        
+                        Swal.fire({
+                            icon: iconType,
+                            title: 'Thông báo',
+                            text: '{{ message }}',
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 3000,
+                            timerProgressBar: true
+                        });
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            // Global Form Submit Loading State
+            document.addEventListener('submit', function(e) {
+                if (!e.defaultPrevented) {
+                    const form = e.target;
+                    const submitBtns = form.querySelectorAll('button[type="submit"]');
+                    submitBtns.forEach(btn => {
+                        // Prevent applying loading state if specifically opted out
+                        if (!btn.hasAttribute('data-no-loading')) {
+                            // Avoid double firing
+                            if(btn.classList.contains('disabled')) {
+                                e.preventDefault();
+                                return;
+                            }
+                            const originalText = btn.innerHTML;
+                            btn.setAttribute('data-original-text', originalText);
+                            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+                            btn.classList.add('disabled');
+                            btn.style.pointerEvents = 'none';
+                        }
+                    });
+                }
+            });
+        });
+    </script>
 	
 	{% block scripts %}
     {% endblock %}

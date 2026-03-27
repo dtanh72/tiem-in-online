@@ -7,6 +7,7 @@
     <h1>&#128221 Sửa Khách hàng: {{ customer.customer_name }}</h1>
 
     <form action="/update_customer" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     
         <input type="hidden" name="customer_id" value="{{ customer.customer_id }}">
         
@@ -46,6 +47,6 @@
         <button type="submit" class="btn btn-primary">Cập nhật Khách hàng</button>
     </form>
 
-    <a href="{{ url_for('customers_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
+    <a href="{{ url_for('customers.customers_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
 
 {% endblock %}

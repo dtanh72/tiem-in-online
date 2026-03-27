@@ -40,7 +40,8 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <form action="{{ url_for('toggle_supplier', id=sup.supplier_id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái nhà cung cấp này?');">
+                                <form action="{{ url_for('suppliers.toggle_supplier', id=sup.supplier_id) }}" method="POST" style="display:inline;" onsubmit="return confirm('Bạn có chắc muốn thay đổi trạng thái nhà cung cấp này?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     {% if sup.is_active %}
                                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Khóa">
                                             <i class="fas fa-lock"></i>
@@ -72,7 +73,8 @@
                 <h5 class="modal-title">Thêm Nhà Cung Cấp Mới</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="{{ url_for('add_supplier') }}" method="POST">
+            <form action="{{ url_for('suppliers.add_supplier') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Tên Nhà Cung Cấp <span class="text-danger">*</span></label>

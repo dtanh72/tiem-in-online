@@ -5,7 +5,7 @@
 {% block content %}
 
     <h1>{{ equipment_info.equipment_name }}</h1>
-    <a href="{{ url_for('equipment_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Danh sách Thiết bị</a>
+    <a href="{{ url_for('equipment.equipment_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Danh sách Thiết bị</a>
 
     <div class="mb-3">
         <div class="equipment-info">
@@ -36,7 +36,8 @@
 
         <div class="log-form">
             <h2>Thêm Nhật ký Bảo trì Mới</h2>
-            <form action="{{ url_for('add_maintenance_log') }}" method="POST" class="card card-body bg-light mb-4">
+            <form action="{{ url_for('equipment.add_maintenance_log') }}" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 
                 <input type="hidden" name="equipment_id" value="{{ equipment_info.equipment_id }}">
                 <div class="mb-3">
@@ -217,7 +218,8 @@
 					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 				</div>
 				<div class="modal-body">
-					<form action="{{ url_for('edit_equipment_info') }}" method="POST">
+					<form action="{{ url_for('equipment.edit_equipment_info') }}" method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 						<input type="hidden" name="equipment_id" value="{{ equipment_info.equipment_id }}">
 						
 						<div class="mb-3">
@@ -289,12 +291,12 @@
 						return;
 					}
 
-					const formData = new FormData();
+					const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
 					formData.append('supplier_name', name);
 					formData.append('phone', phone);
 					formData.append('email', email);
 
-					fetch("{{ url_for('ajax_add_supplier') }}", {
+					fetch("{{ url_for('suppliers.ajax_add_supplier') }}", {
 						method: 'POST',
 						body: formData
 					})

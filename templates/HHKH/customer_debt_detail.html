@@ -4,7 +4,7 @@
 
 {% block content %}
     <h1 class="mb-4">Chi tiết Công nợ: {{ customer_info.customer_name }}</h1>
-    <a href="{{ url_for('customer_debt_report') }}">&larr; Quay lại Báo cáo Tổng hợp</a>
+    <a href="{{ url_for('customers.customer_debt_report') }}">&larr; Quay lại Báo cáo Tổng hợp</a>
 
     <div class="alert alert-danger mt-3">
         <h4>Tổng Công nợ Phải Thu từ {{ customer_info.customer_name }}</h4>
@@ -39,7 +39,7 @@
                     <td>{{ order.amount_paid|currency }} vnđ</td>
                     <td class="fw-bold text-danger">{{ order.amount_due|currency }} vnđ</td>
                     <td>
-                        <a href="{{ url_for('order_detail_page', order_id=order.order_id) }}" class="btn btn-sm btn-primary">
+                        <a href="{{ url_for('orders.order_detail_page', order_id=order.order_id) }}" class="btn btn-sm btn-primary">
                             Xem & Thanh toán
                         </a>
                     </td>

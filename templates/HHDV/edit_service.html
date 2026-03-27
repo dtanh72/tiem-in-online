@@ -7,6 +7,7 @@
     <h1>Sửa Dịch vụ: {{ service.service_name }}</h1>
 
     <form action="/update_service" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
     
         <input type="hidden" name="service_id" value="{{ service.service_id }}">
         
@@ -16,15 +17,16 @@
         </div>
         <div class="mb-3">
 			<label class="form-label">Đơn Vị Tính Tầng 1 (Cơ sở):</label>
-			<input type="text" name="unit" class="form-control" required placeholder="VD: Tờ">
+			<input type="text" name="unit" class="form-control" value="{{ service.unit }}" required placeholder="VD: Tờ">
 		</div>
+		<div>
 		<div class="mb-3">
 			<label class="form-label">Đơn Vị Tính Tầng 2 (Nếu có):</label>
-			<input type="text" name="unit_level2" class="form-control" placeholder="VD: Cuốn/Xấp">
+			<input type="text" name="unit_level2" class="form-control" value="{{ service.unit_level2 }}" placeholder="VD: Cuốn/Xấp">
 		</div>
 		<div class="mb-3">
 			<label class="form-label">Đơn Vị Tính Tầng 3 (Nếu có):</label>
-			<input type="text" name="unit_level3" class="form-control" placeholder="VD: Bộ">
+			<input type="text" name="unit_level3" class="form-control" value="{{ service.unit_level3 }}" placeholder="VD: Bộ">
 		</div>
 		<div class="mb-3">
 			<label for="base_price" class="form-label">Đơn giá (vnđ):</label><br>
@@ -38,6 +40,6 @@
 		<button type="submit" class="btn btn-primary">Cập nhật Dịch vụ</button>
     </form>
 
-    <a href="{{ url_for('services_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
+    <a href="{{ url_for('services.services_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại danh sách</a>
 
 {% endblock %}

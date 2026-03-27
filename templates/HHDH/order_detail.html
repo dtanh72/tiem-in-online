@@ -30,7 +30,7 @@
                     {% endfor %}
                 </tbody>
             </table>
-            <a href="{{ url_for('create_import_page') }}" class="btn btn-sm btn-danger fw-bold mt-2">
+            <a href="{{ url_for('inventory.create_import_page') }}" class="btn btn-sm btn-danger fw-bold mt-2">
                 <i class="fas fa-truck-loading"></i> Đi tới trang Nhập Kho
             </a>
         </div>
@@ -42,7 +42,7 @@
 		</div>
 	{% endif %}
 	
-    <a href="{{ url_for('orders_history_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Lịch sử</a>
+    <a href="{{ url_for('orders.orders_history_page') }}" class="btn btn-sm btn-warning">&larr; Quay lại Lịch sử</a>
 
     <div class="mb-3 order-info">
         <div class="mb-3">
@@ -99,7 +99,8 @@
         {% if amount_due > 0 and order.status != 'cancelled' %}
         <div class="mb-3">
             <h2>Ghi nhận Thanh toán</h2>
-            <form action="{{ url_for('log_payment', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4">
+            <form action="{{ url_for('orders.log_payment', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <div class="mb-3">
                     <label for="amount_received" class="form-label">Số tiền nhận (vnđ):</label><br>
                     <input type="number" id="amount_received" name="amount_received" 
@@ -128,7 +129,8 @@
         {% if order.delivery_status != 'delivered' and order.status != 'cancelled' %}
         <div class="mb-3">
             <h2>Trạng thái Giao hàng</h2>
-            <form action="{{ url_for('update_delivery_status', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4 shadow-sm">
+            <form action="{{ url_for('orders.update_delivery_status', order_id=order.order_id) }}" method="POST" class="card card-body bg-light mb-4 shadow-sm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                 <p>Trạng thái hiện tại: <strong class="text-primary">{{ order.delivery_status }}</strong></p>
 
                 {% set can_deliver = false %}
@@ -310,7 +312,8 @@
 
 	<div class="modal fade" id="updateOutsourceModal" tabindex="-1">
 		<div class="modal-dialog">
-			<form action="{{ url_for('update_outsource_status') }}" method="POST" class="modal-content">
+			<form action="{{ url_for('orders.update_outsource_status') }}" method="POST" class="modal-content">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 				<div class="modal-header bg-danger text-white">
 					<h5 class="modal-title">Cập nhật Tiến độ Gia công</h5>
 					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>

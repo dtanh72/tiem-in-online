@@ -27,7 +27,7 @@
 				<tr>
 					<td>{{ item.customer_id }}</td>
 					<td>
-						<a href="{{ url_for('customer_debt_detail_report', customer_id=item.customer_id) }}">
+						<a href="{{ url_for('customers.customer_debt_detail_report', customer_id=item.customer_id) }}">
 							{{ item.customer_name }}
 						</a>
 					</td>
