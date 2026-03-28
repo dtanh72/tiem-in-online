@@ -21,11 +21,12 @@
                 
                 <a href="{{ url_for('system.system_logs_page') }}" class="btn btn-outline-secondary">Xóa lọc</a>
 
-                <div class="vr"></div> <button type="submit" name="action" value="export" class="btn btn-success">
+                <div class="vr"></div> 
+                <button type="submit" name="action" value="export" class="btn btn-success" data-no-loading="true">
                     📥 Xuất CSV
                 </button>
 
-                <button type="button" class="btn btn-danger ms-auto" onclick="submitClearLog()">
+                <button type="button" id="btnDeleteLog" class="btn btn-danger ms-auto" onclick="submitClearLog()">
                     🗑️ Xóa Log này
                 </button>
             </div>
@@ -123,6 +124,14 @@
 				// 4. Đổ dữ liệu vào form ẩn (Dùng ID mới)
 				document.getElementById('hidden_start').value = startVal;
 				document.getElementById('hidden_end').value = endVal;
+				
+				// Show loading UI
+				const btn = document.getElementById('btnDeleteLog');
+				if (btn) {
+					btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xóa...';
+					btn.classList.add('disabled');
+					btn.style.pointerEvents = 'none';
+				}
 				
 				// 5. Gửi form
 				document.getElementById('clearLogForm').submit();

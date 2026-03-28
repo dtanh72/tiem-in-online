@@ -217,6 +217,17 @@ def cancel_order(order_id):
                     notes = COALESCE(notes, '') || '\n[HỆ THỐNG]: Khách hủy đơn khi xưởng đang gia công -> MẤT CỌC.'
                 WHERE order_id = %s
             """, (order_id,))
+            
+            log_system_action(
+                user_id=current_user.id,
+                username=current_user.username,
+                full_name=current_user.full_name,
+                action_type='CANCEL_ORDER',
+                target_module=MD_SALE,
+                description=f"Hủy đơn hàng ID #{order_id} (Đơn gia công mất cọc)",
+                ip_address=request.remote_addr
+            )
+
             conn.commit()
             
             if deposited_amount > 0:
@@ -232,6 +243,17 @@ def cancel_order(order_id):
                     payment_status = 'unpaid'      
                 WHERE order_id = %s
             """, (order_id,))
+            
+            log_system_action(
+                user_id=current_user.id,
+                username=current_user.username,
+                full_name=current_user.full_name,
+                action_type='CANCEL_ORDER',
+                target_module=MD_SALE,
+                description=f"Hủy đơn hàng ID #{order_id}",
+                ip_address=request.remote_addr
+            )
+
             conn.commit()
             
             if deposited_amount > 0:
@@ -484,6 +506,16 @@ def update_delivery_status(order_id):
             else:
                 flash('Đã cập nhật trạng thái giao hàng và xuất kho thành công!', 'success')
             
+            log_system_action(
+                user_id=current_user.id,
+                username=current_user.username,
+                full_name=current_user.full_name,
+                action_type='UPD_DELIVERY',
+                target_module=MD_SALE,
+                description=f"Cập nhật trạng thái giao hàng đơn #{order_id} thành {new_status}",
+                ip_address=request.remote_addr
+            )
+
             conn.commit()
             
     except Exception as e:
@@ -517,6 +549,16 @@ def update_outsource_status():
             WHERE order_id = %s
         """, (delivery_date, status, order_id))
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_OUTSOURCE',
+            target_module=MD_SALE,
+            description=f"Cập nhật tiến độ gia công đơn #{order_id} thành {status}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Đã cập nhật tiến độ gia công thành công!', 'success')
         

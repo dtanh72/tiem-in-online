@@ -1,10 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection
-from utils import requires_permission
-from constants import MANAGE_OUTSOURCE_HTML
+from utils import requires_permission, log_system_action
+from constants import MANAGE_OUTSOURCE_HTML, MD_SALE
 
 outsource_bp = Blueprint('outsource', __name__)
 
@@ -55,6 +55,17 @@ def add_outsource_category():
             INSERT INTO Outsource_Categories (partner_id, category_name, type, unit) 
             VALUES (%s, %s, %s, %s)
         """, (partner_id, name, cat_type, unit))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_OUTSOURCE_CAT',
+            target_module=MD_SALE,
+            description=f"Thêm hạng mục gia công: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Thêm Hạng mục gia công thành công!', 'success')
     except Exception as e:
@@ -76,6 +87,17 @@ def add_outsource_partner():
     cur = conn.cursor()
     try:
         cur.execute("INSERT INTO Outsource_Partners (partner_name, phone, address) VALUES (%s, %s, %s)", (name, phone, address))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_OUTSOURCE_PARTNER',
+            target_module=MD_SALE,
+            description=f"Thêm đối tác gia công: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Thêm Đối tác gia công thành công!', 'success')
     except Exception as e:
@@ -102,6 +124,17 @@ def add_outsource_price():
             INSERT INTO Outsource_Prices (category_id, item_name, min_qty, max_qty, unit_price) 
             VALUES (%s, %s, %s, %s, %s)
         """, (category_id, item_name, min_qty, max_qty, unit_price))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_OUTSOURCE_PRICE',
+            target_module=MD_SALE,
+            description=f"Thêm mốc giá gia công: {item_name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Thêm Mốc giá Gia công thành công!', 'success')
     except Exception as e:
@@ -128,6 +161,17 @@ def edit_outsource_category():
             SET category_name = %s, type = %s, unit = %s
             WHERE category_id = %s
         """, (name, cat_type, unit, category_id))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='EDIT_OUTSOURCE_CAT',
+            target_module=MD_SALE,
+            description=f"Cập nhật danh mục gia công ID #{category_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Cập nhật Danh mục gia công thành công!', 'success')
     except Exception as e:
@@ -156,6 +200,17 @@ def edit_outsource_price():
             SET item_name = %s, min_qty = %s, max_qty = %s, unit_price = %s
             WHERE price_id = %s
         """, (item_name, min_qty, max_qty, unit_price, price_id))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='EDIT_OUTSOURCE_PRICE',
+            target_module=MD_SALE,
+            description=f"Cập nhật mốc giá gia công ID #{price_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Cập nhật Mốc giá thành công!', 'success')
     except Exception as e:

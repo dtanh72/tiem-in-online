@@ -1,5 +1,6 @@
 import os
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, flash
+import psycopg2
 from dotenv import load_dotenv
 
 from extensions import login_manager, csrf, limiter
@@ -93,6 +94,12 @@ def setup_admin():
 @app.route('/')
 def index():
     return redirect(url_for('dashboard.dashboard_page'))
+
+# Bắt lỗi mất kết nối DB toàn cục
+@app.errorhandler(psycopg2.OperationalError)
+def handle_db_connection_error(e):
+    flash('Mất kết nối với cơ sở dữ liệu (Database Connection Closed). Vui lòng đăng nhập lại.', 'danger')
+    return redirect(url_for('auth.login'))
 
 if __name__ == '__main__':
     app.run(debug=True)

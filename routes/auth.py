@@ -19,6 +19,17 @@ def setup_admin():
         cur.execute("INSERT INTO Roles (role_id, role_name, permissions) VALUES (1, 'Admin', 'all') ON CONFLICT DO NOTHING")
         hashed_pw = generate_password_hash(ADMIN_PAS_DEF)
         cur.execute("INSERT INTO Users (username, password_hash, full_name, role_id) VALUES (%s, %s, 'Super Admin', 1)", (ADMIN_DEF, hashed_pw))
+        
+        log_system_action(
+            user_id=1,
+            username='system',
+            full_name='Hệ thống',
+            action_type='SETUP_ADMIN',
+            target_module=MD_AUTH,
+            description='Khởi tạo tài khoản Admin ban đầu',
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         return "Tạo Admin thành công!"
     except Exception as e:

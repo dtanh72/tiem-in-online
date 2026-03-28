@@ -1,10 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection
-from utils import requires_permission
-from constants import (NCC_HTML, SUPPLIER_DEBT_REPORT)
+from utils import requires_permission, log_system_action
+from constants import (NCC_HTML, SUPPLIER_DEBT_REPORT, MD_ACC)
 
 suppliers_bp = Blueprint('suppliers', __name__)
 
@@ -34,6 +34,17 @@ def add_supplier():
             VALUES (%s, %s, %s, %s)
         """
         cur.execute(sql, (name, phone, email, address))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_SUPPLIER',
+            target_module=MD_ACC,
+            description=f"Thêm nhà cung cấp: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Thêm nhà cung cấp thành công!', 'success')
     except Exception as e:
@@ -49,6 +60,17 @@ def toggle_supplier(id):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("UPDATE Suppliers SET is_active = NOT is_active WHERE supplier_id = %s", (id,))
+    
+    log_system_action(
+        user_id=current_user.id,
+        username=current_user.username,
+        full_name=current_user.full_name,
+        action_type='TOGGLE_SUPPLIER',
+        target_module=MD_ACC,
+        description=f"Thay đổi trạng thái nhà cung cấp ID #{id}",
+        ip_address=request.remote_addr
+    )
+
     conn.commit()
     conn.close()
     return redirect(url_for('suppliers.suppliers_page'))
@@ -128,6 +150,17 @@ def pay_supplier_bill():
             return "Lỗi: Nguồn công nợ không xác định.", 400
 
         cursor.execute(sql, (bill_id,))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='PAY_SUPPLIER',
+            target_module=MD_ACC,
+            description=f"Thanh toán công nợ NCC cho {bill_source} ID #{bill_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as err:
         if 'conn' in locals(): conn.rollback() 
@@ -167,6 +200,16 @@ def ajax_add_supplier():
         else:
             raise Exception("Không lấy được ID mới từ Database")
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_SUPPLIER_AJAX',
+            target_module=MD_ACC,
+            description=f"Thêm nhanh nhà cung cấp: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         
         return jsonify({

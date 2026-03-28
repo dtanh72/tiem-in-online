@@ -8,7 +8,7 @@ from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection, get_mongo_collection
 from utils import log_system_action, requires_permission
-from constants import SYSTEM_LOG_HTML
+from constants import SYSTEM_LOG_HTML, MD_SYS
 
 system_bp = Blueprint('system', __name__)
 
@@ -143,6 +143,17 @@ def operating_expenses_page():
                 INSERT INTO operating_expenses (expense_date, expense_type, amount, description)
                 VALUES (%s, %s, %s, %s)
             """, (expense_date, expense_type, amount, description))
+            
+            log_system_action(
+                user_id=current_user.id,
+                username=current_user.username,
+                full_name=current_user.full_name,
+                action_type='ADD_EXPENSE',
+                target_module=MD_SYS,
+                description=f"Thêm chi phí vận hành: {expense_type} - {amount:,.0f} đ",
+                ip_address=request.remote_addr
+            )
+
             conn.commit()
             flash('Đã ghi nhận chi phí thành công!', 'success')
             return redirect(url_for('system.operating_expenses_page'))

@@ -6,7 +6,7 @@ from psycopg2.extras import RealDictCursor
 from db import get_db_connection
 from utils import log_system_action, requires_permission
 from constants import (MATERIALS_HTML, EDIT_MATERIAL_HTML, CREATE_IMPORT_HTML,
-                       IMPORT_DETAIL_HTML, CREATE_ADJUSTMENT_INV_HTML, ADJUSTMENT_DETAIL_HTML)
+                       IMPORT_DETAIL_HTML, CREATE_ADJUSTMENT_INV_HTML, ADJUSTMENT_DETAIL_HTML, MD_INV)
 
 inventory_bp = Blueprint('inventory', __name__)
 
@@ -55,6 +55,17 @@ def add_material():
         cur.execute(sql, (name, m_type, lifespan, base_unit, import_unit, conv_factor, stock_qty))
         
         new_id = cur.fetchone()['material_id']
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_MATERIAL',
+            target_module=MD_INV,
+            description=f"Thêm vật tư kho mới: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Thêm vật tư thành công!', 'success')
         
@@ -108,6 +119,16 @@ def update_material():
         """
         cur.execute(sql, (name, m_type, lifespan, base_unit, import_unit, conv_factor, stock_qty, m_id))
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_MATERIAL',
+            target_module=MD_INV,
+            description=f"Cập nhật vật tư ID #{m_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Cập nhật vật tư thành công!', 'success')
         
@@ -130,6 +151,17 @@ def toggle_material(id):
     cur = conn.cursor()
     try:
         cur.execute("UPDATE materials SET is_active = NOT is_active WHERE material_id = %s", (id,))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='TOGGLE_MATERIAL',
+            target_module=MD_INV,
+            description=f"Thay đổi trạng thái vật tư ID #{id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Đã thay đổi trạng thái vật tư.', 'success')
     except Exception as e:
@@ -280,6 +312,16 @@ def submit_import_slip():
                 WHERE material_id = %s
             """, (qty_to_add, item['material_id']))
 
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_IMPORT_SLIP',
+            target_module=MD_INV,
+            description=f"Tạo phiếu nhập kho ID #{new_import_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Đã lưu phiếu nhập kho và cập nhật số lượng tồn thành công!', 'success')
 
@@ -372,6 +414,16 @@ def update_import_slip(import_id):
             WHERE import_id = %s
         """, (notes, import_date, total_amount, import_id))
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_IMPORT_SLIP',
+            target_module=MD_INV,
+            description=f"Cập nhật phiếu nhập kho ID #{import_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Đã cập nhật phiếu nhập kho và tính lại tồn kho thành công!', 'success')
         
@@ -439,6 +491,16 @@ def add_adjustment():
         """
         cursor.execute(sql_update, (quantity, material_id))
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADJ_INV_STOCK',
+            target_module=MD_INV,
+            description=f"Thêm điều chỉnh kho vật tư ID #{material_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit() 
         
     except Exception as e: 
@@ -577,6 +639,16 @@ def submit_adjustment_slip():
                     WHERE material_id = %s
                 """, (new_stock, new_mac, m_id))
 
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='SUBMIT_ADJ_SLIP',
+            target_module=MD_INV,
+            description=f"Tạo phiếu kiểm kê / điều chỉnh kho ID #{adj_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Đã lưu Phiếu điều chỉnh và cập nhật lại Tồn kho, Giá vốn thành công!', 'success')
         
@@ -643,6 +715,17 @@ def ajax_add_material():
         """
         cursor.execute(sql, (material_name, base_unit, import_unit, factor))
         new_id = cursor.fetchone()['material_id']
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_MATERIAL_AJAX',
+            target_module=MD_INV,
+            description=f"Thêm kiểm kê nhanh vật tư: {material_name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         
         return jsonify({

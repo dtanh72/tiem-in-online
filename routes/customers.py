@@ -89,6 +89,17 @@ def delete_customer(customer_id):
     cur = conn.cursor()
     try:
         cur.execute("DELETE FROM Customers WHERE customer_id = %s", (customer_id,))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='DEL_CUSTOMER',
+            target_module=MD_SALE,
+            description=f"Xóa Khách hàng #{customer_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -285,6 +296,16 @@ def ajax_add_customer():
         else:
             raise Exception("Không tạo được ID")
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_CUSTOMER_AJAX',
+            target_module=MD_SALE,
+            description=f"Thêm nhanh Khách hàng #{name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         
         return jsonify({

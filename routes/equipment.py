@@ -4,7 +4,7 @@ from psycopg2.extras import RealDictCursor
 
 from db import get_db_connection
 from utils import log_system_action, requires_permission
-from constants import (TB_HTML, CT_TB_HTML, EQUIP_HIST_HTML)
+from constants import (TB_HTML, CT_TB_HTML, EQUIP_HIST_HTML, MD_TECH)
 
 equipment_bp = Blueprint('equipment', __name__)
 
@@ -56,6 +56,16 @@ def add_equipment():
         """
         cur.execute(sql, (name, ip, serial, model, sup_id, p_date, w_date, w_count, print_c))
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_EQUIPMENT',
+            target_module=MD_TECH,
+            description=f"Thêm thiết bị mới: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -74,6 +84,17 @@ def delete_equipment(equipment_id):
     try:
         sql = "DELETE FROM Equipment WHERE equipment_id = %s"
         cur.execute(sql, (equipment_id,))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='DEL_EQUIPMENT',
+            target_module=MD_TECH,
+            description=f"Xóa thiết bị ID #{equipment_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -162,6 +183,16 @@ def edit_equipment_info():
         """
         cur.execute(sql, (name, ip_addr, serial, model, val_supplier, p_date, w_date, equipment_id))
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='EDIT_EQUIPMENT',
+            target_module=MD_TECH,
+            description=f"Cập nhật thông tin chi tiết thiết bị ID #{equipment_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
         
@@ -182,6 +213,17 @@ def toggle_equipment(id):
     cur = conn.cursor()
     try:
         cur.execute("UPDATE Equipment SET is_active = NOT is_active WHERE equipment_id = %s", (id,))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='TOGGLE_EQUIPMENT',
+            target_module=MD_TECH,
+            description=f"Thay đổi trạng thái thiết bị ID #{id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -214,6 +256,17 @@ def update_equipment():
             WHERE equipment_id=%s
         """
         cur.execute(sql, (name, model, serial, supplier, p_date, w_date, e_id))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='UPD_EQUIPMENT',
+            target_module=MD_TECH,
+            description=f"Cập nhật thiết bị ID #{e_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         flash('Cập nhật thông tin thiết bị thành công!', 'success')
     except Exception as e:
@@ -341,6 +394,16 @@ def add_maintenance_log():
         if rep_mat_id and rep_qty > 0:
             cur.execute("UPDATE Materials SET stock_quantity = stock_quantity - %s WHERE material_id = %s", (rep_qty, rep_mat_id))
             
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_MAINTENANCE',
+            target_module=MD_TECH,
+            description=f"Thêm nhật ký bảo trì thiết bị ID #{eq_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         
     except Exception as e:
@@ -370,6 +433,17 @@ def ajax_add_equipment():
         """
         cur.execute(sql, (name,))
         new_id = cur.fetchone()['equipment_id']
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_EQUIPMENT_AJAX',
+            target_module=MD_TECH,
+            description=f"Thêm nhanh thiết bị: {name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         conn.close()
 

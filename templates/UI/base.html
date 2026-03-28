@@ -23,6 +23,22 @@
     <!-- jQuery (Needed for DataTables & Select2) -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
+    <style>
+        /* Tối ưu hóa bảng dữ liệu trên Mobile & Desktop theo yêu cầu UX */
+        table.table th {
+            white-space: nowrap !important; /* Đảm bảo Data không rớt dòng bậy bạ ở tiêu đề */
+        }
+        table.table td {
+            min-width: 90px; /* Đảm bảo không ô nào quá hẹp đến mức dồn cục chữ */
+            word-wrap: break-word; /* Chữ dài tự động ngắt dòng */
+        }
+        /* Cho phép vuốt ngang mượt mà trên điện thoại */
+        .table-responsive {
+            -webkit-overflow-scrolling: touch;
+            border-radius: 5px;
+        }
+    </style>
+
     <title>{% block title %}Hệ thống Quản lý{% endblock %}</title>
 </head>
 <body>
@@ -162,9 +178,25 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Global Flash Messages via SweetAlert2 -->
+    <!-- Global Flash Messages via SweetAlert2 & Table Responsive Fix -->
     <script>
         $(document).ready(function() {
+            // 1. Tự động bọc toàn bộ các bảng vào thẻ cho phép vuốt ngang (Responsive) trên màn hình nhỏ
+            // Việc này đảm bảo không bao giờ bị mất cột hay ẩn cột
+            $('table.table').each(function() {
+                if (!$(this).parent().hasClass('table-responsive')) {
+                    $(this).wrap('<div class="table-responsive"></div>');
+                }
+            });
+
+            // 2. Tắt tính năng ép hẹp cột tự động của DataTables để nhường quyền cho Trình duyệt tự dãn cột theo nội dung (UX tốt nhất)
+            if ($.fn.DataTable) {
+                $.extend(true, $.fn.dataTable.defaults, {
+                    autoWidth: false,
+                    language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/vi.json' }
+                });
+            }
+
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
@@ -191,11 +223,16 @@
             document.addEventListener('submit', function(e) {
                 if (!e.defaultPrevented) {
                     const form = e.target;
+                    const submitter = e.submitter;
+
+                    // Nếu nút nhấn submit có gán cờ vô hiệu hóa hiệu ứng loading (VD: Dùng xuất file download)
+                    if (submitter && submitter.hasAttribute('data-no-loading')) {
+                        return; // Bỏ qua việc vô hiệu hóa các nút
+                    }
+
                     const submitBtns = form.querySelectorAll('button[type="submit"]');
                     submitBtns.forEach(btn => {
-                        // Prevent applying loading state if specifically opted out
                         if (!btn.hasAttribute('data-no-loading')) {
-                            // Avoid double firing
                             if(btn.classList.contains('disabled')) {
                                 e.preventDefault();
                                 return;

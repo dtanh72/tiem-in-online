@@ -2,9 +2,10 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 import datetime
 from psycopg2.extras import RealDictCursor
 
+from flask_login import current_user
 from db import get_db_connection
-from utils import requires_permission
-from constants import COUPONS_HTML
+from utils import requires_permission, log_system_action
+from constants import COUPONS_HTML, MD_SALE
 
 coupons_bp = Blueprint('coupons', __name__)
 
@@ -56,6 +57,16 @@ def add_coupon():
               start_date, end_date, usage_limit, 
               applicable_service_id, min_service_quantity))
               
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_COUPON',
+            target_module=MD_SALE,
+            description=f"Thêm mã giảm giá #{code}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -74,8 +85,22 @@ def toggle_coupon_status(coupon_id):
         UPDATE Coupons 
         SET status = CASE WHEN status = 'active' THEN 'inactive' ELSE 'active' END 
         WHERE coupon_id = %s
+        RETURNING status, code
     """
     cur.execute(sql, (coupon_id,))
+    res = cur.fetchone()
+    if res:
+        new_status, code = res
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='TOGGLE_COUPON',
+            target_module=MD_SALE,
+            description=f"Đổi trạng thái mã #{code} thành {new_status}",
+            ip_address=request.remote_addr
+        )
+
     conn.commit()
     cur.close()
     conn.close()

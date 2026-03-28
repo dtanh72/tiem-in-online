@@ -277,6 +277,16 @@ def add_service_material():
             cursor.execute(sql, (service_id, mat_id, float(qty), int(level)))
             last_new_id = cursor.fetchone()['service_material_id']
         
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_BOM',
+            target_module=MD_SALE,
+            description=f"Thêm định mức vật tư cho dịch vụ ID #{service_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit() 
     except Exception as e:
         conn.rollback() 
@@ -296,6 +306,17 @@ def delete_service_material(sm_id):
     try:
         sql = "DELETE FROM Service_Materials WHERE service_material_id = %s"
         cursor.execute(sql, (sm_id,))
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='DEL_BOM',
+            target_module=MD_SALE,
+            description=f"Xóa định mức vật tư BOM ID #{sm_id}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -324,6 +345,17 @@ def ajax_add_service():
         """
         cursor.execute(sql, (service_name, base_price, unit, unit_level2, unit_level3))
         new_id = cursor.fetchone()['service_id']
+        
+        log_system_action(
+            user_id=current_user.id,
+            username=current_user.username,
+            full_name=current_user.full_name,
+            action_type='ADD_SERVICES_AJAX',
+            target_module=MD_SALE,
+            description=f"Thêm nhanh dịch vụ: {service_name}",
+            ip_address=request.remote_addr
+        )
+
         conn.commit()
         
         return jsonify({
