@@ -201,7 +201,12 @@
             {% for item in order_items %}
                 {% set ns.total_internal_cost = ns.total_internal_cost + (item.cost_of_goods or 0) %}
                 <tr>
-                    <td>{{ item.service_name }}</td>
+                    <td>
+                        {% if item.combo_name %}
+                            <span class="badge bg-warning text-dark me-1">[{{ item.combo_name }}]</span>
+                        {% endif %}
+                        {{ item.service_name }}
+                    </td>
                     <td>{{ item.quantity }}</td>
                     <td>{{ item.unit }}</td>
                     <td>{{ item.unit_price|currency }}</td>

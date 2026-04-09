@@ -96,7 +96,12 @@
         <tbody>
             {% for item in quote_items %}
             <tr>
-                <td>{{ item.service_name }}</td>
+                <td>
+                    {% if item.combo_name %}
+                        <span class="badge bg-warning text-dark me-1">[{{ item.combo_name }}]</span>
+                    {% endif %}
+                    {{ item.service_name }}
+                </td>
                 <td>{{ item.quantity }}</td>
                 <td>{{ item.unit }}</td>
                 <td>{{ item.unit_price|currency }}</td>

@@ -95,7 +95,8 @@
                         </a>
                         <ul class="dropdown-menu">
 							{% if current_user.can('sale') or current_user.can('all') %}
-                            <li><a class="dropdown-item" href="{{ url_for('services.services_page') }}">Dịch vụ</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('services.services_page') }}">Dịch vụ Lẻ</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('combos.manage_combos') }}">Gói Combo</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('customers.customers_page') }}">Khách hàng</a></li>							
 							<li>
 								<a class="dropdown-item" href="{{ url_for('outsource.manage_outsource') }}">
@@ -116,6 +117,12 @@
 							<li><a class="dropdown-item" href="{{ url_for('system.operating_expenses_page') }}">Chi Phí Vận Hành</a></li>
 							{% endif %}
                         </ul>
+                    </li>
+                    
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-bold" href="{{ url_for('tools.calculators_page') }}">
+                            <i class="fas fa-calculator"></i> Công cụ Hỗ trợ
+                        </a>
                     </li>
                     
                     <li class="nav-item dropdown">

@@ -39,6 +39,29 @@ def create_order_page():
     cur.execute("SELECT partner_id, partner_name FROM Outsource_Partners WHERE is_active = TRUE ORDER BY partner_name")
     partners_list = cur.fetchall()
     
+    # Query Combos and their items
+    cur.execute("SELECT * FROM Combos WHERE is_active = TRUE")
+    combos_raw = cur.fetchall()
+    combos_list = []
+    for c in combos_raw:
+        cur.execute("""
+            SELECT ci.service_id, ci.quantity, s.service_name, s.base_price,
+                   s.unit, s.unit_level2, s.unit_level3
+            FROM Combo_Items ci 
+            JOIN Services s ON ci.service_id = s.service_id 
+            WHERE ci.combo_id = %s
+        """, (c['combo_id'],))
+        c['items'] = cur.fetchall()
+        
+        # Convert Decimals to float for JSON serialization
+        c['combo_price'] = float(c['combo_price'])
+        for item in c['items']:
+            item['base_price'] = float(item['base_price'])
+        
+        combos_list.append(c)
+        
+    combos_json = json.dumps(combos_list)
+    
     cur.close()
     conn.close()
     
@@ -47,7 +70,8 @@ def create_order_page():
                            services_list=services,
                            equipment_list=equipment, 
                            active_coupons=coupons,
-                           partners=partners_list)
+                           partners=partners_list,
+                           combos_json=combos_json)
 
 @orders_bp.route('/submit_order', methods=['POST'])
 @requires_permission('sale')
@@ -69,6 +93,7 @@ def submit_order():
         quantities = request.form.getlist('quantity[]')
         unit_prices = request.form.getlist('unit_price[]')
         equipment_ids = request.form.getlist('equipment_id[]')
+        combo_ids = request.form.getlist('combo_id[]')
         
         qty_l1_list = request.form.getlist('qty_l1[]')
         qty_l2_list = request.form.getlist('qty_l2[]')
@@ -154,11 +179,13 @@ def submit_order():
             
             profit = line_total - total_cost_item
             
+            c_id = combo_ids[i] if i < len(combo_ids) and combo_ids[i] != '' else None
+            
             sql_item = """
-                INSERT INTO Order_Items (order_id, service_id, equipment_id, quantity, unit_price, line_total, cost_of_goods, profit)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO Order_Items (order_id, service_id, combo_id, equipment_id, quantity, unit_price, line_total, cost_of_goods, profit)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """
-            cur.execute(sql_item, (new_order_id, srv_id, equip_id, qty, price, line_total, total_cost_item, profit))
+            cur.execute(sql_item, (new_order_id, srv_id, c_id, equip_id, qty, price, line_total, total_cost_item, profit))
             
             if equip_id and qty > 0:
                 cur.execute("UPDATE Equipment SET print_count = print_count + %s WHERE equipment_id = %s", (qty, equip_id))
@@ -335,9 +362,10 @@ def order_detail_page(order_id):
         order = cursor.fetchone()
         
         cursor.execute("""
-            SELECT oi.*, s.service_name, s.unit 
+            SELECT oi.*, s.service_name, s.unit, cb.combo_name
             FROM Order_Items oi
             LEFT JOIN Services s ON oi.service_id = s.service_id
+            LEFT JOIN Combos cb ON oi.combo_id = cb.combo_id
             WHERE oi.order_id = %s
         """, (order_id,))
         order_items = cursor.fetchall()

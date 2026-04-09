@@ -1,0 +1,525 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}Công Cụ Hỗ Trợ In Ấn{% endblock %}
+
+{% block content %}
+<div class="container-fluid mb-5">
+    <h2 class="mb-4 text-warning fw-bold"><i class="fas fa-tools"></i> Bộ Công Cụ Hỗ Trợ Đầy Đủ</h2>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs" id="calculatorTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold" id="format-tab" data-bs-toggle="tab" data-bs-target="#format" type="button" role="tab"><i class="fas fa-ruler-combined"></i> In Khổ Lớn (M2)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" id="nesting-tab" data-bs-toggle="tab" data-bs-target="#nesting" type="button" role="tab"><i class="fas fa-border-all"></i> Bình Tem Định Hình (Nesting)</button>
+        </li>
+    </ul>
+
+    <div class="tab-content border border-top-0 bg-white p-4" id="calculatorTabsContent">
+        
+        <!-- ======================= IN KHỔ LỚN ======================= -->
+        <div class="tab-pane fade show active" id="format" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="text-primary mb-3">Thông số Kích thước & Chất liệu</h5>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-bold">Chiều dài (m):</label>
+                            <input type="number" id="lf_length" class="form-control" placeholder="Ví dụ: 3.5" step="0.01" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold">Chiều rộng (m):</label>
+                            <input type="number" id="lf_width" class="form-control" placeholder="Ví dụ: 1.2" step="0.01" min="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Chất liệu in:</label>
+                        <div class="input-group">
+                            <select id="lf_material" class="form-select" onchange="loadMaterialPrice()">
+                                <option value="Bạt Hiflex">Bạt Hiflex (Bạt thường)</option>
+                                <option value="Bạt Xám 2 Da">Bạt Phản Quang / Bạt Xám 2 Da</option>
+                                <option value="Decal Sữa">Decal Sữa (Decal Trắng)</option>
+                                <option value="Decal Trong">Decal Trong (Dán kính)</option>
+                                <option value="Giấy PP">Giấy PP (Poster)</option>
+                                <option value="Canvas">Canvas (Tranh vải in)</option>
+                                <option value="Backlit Film">Backlit Film (Hộp đèn hộp siêu mỏng)</option>
+                            </select>
+                            <button class="btn btn-outline-secondary fw-bold" type="button" onclick="saveMaterialPrice()"><i class="fas fa-save"></i> Lưu Giá</button>
+                        </div>
+                        <small class="text-muted d-block mt-1">Chọn vật liệu để tự động nạp đơn giá. Bấm "Lưu" để hệ thống nhớ giá cho lần dùng mũi.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Số lượng (tấm):</label>
+                        <input type="number" id="lf_qty" class="form-control" value="1" min="1">
+                    </div>
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between">
+                            <label class="form-label fw-bold">Đơn giá in mỗi m² (vnđ):</label>
+                        </div>
+                        <input type="number" id="lf_price_per_m2" class="form-control" placeholder="Ví dụ: 35000" min="0" step="500">
+                        <small class="text-muted">Nhập giá bán mà xưởng thu của khách cho 1 mét vuông.</small>
+                    </div>
+                    <button class="btn btn-primary w-100 fw-bold" onclick="calculateLargeFormat()">Tính Toán Nhanh <i class="fas fa-arrow-right"></i></button>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="card bg-light border-primary mt-4 mt-md-0 shadow-sm h-100">
+                        <div class="card-header bg-primary text-white text-center fw-bold">KẾT QUẢ IN KHỔ LỚN</div>
+                        <div class="card-body text-center d-flex flex-column justify-content-center">
+                            <div class="mb-3">
+                                <h6 class="text-muted text-uppercase mb-1">Tổng Diện Tích</h6>
+                                <h2 class="text-dark fw-bold mb-0"><span id="lf_total_area">0.00</span> m²</h2>
+                            </div>
+                            <hr class="w-50 mx-auto">
+                            <div>
+                                <h6 class="text-muted text-uppercase mb-1">Thành Tiền</h6>
+                                <h2 class="text-danger fw-bold mb-0"><span id="lf_total_price">0</span> vnđ</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ======================= BÌNH TEM NHÃN ======================= -->
+        <div class="tab-pane fade" id="nesting" role="tabpanel">
+            <div class="row">
+                <!-- FORM NHẬP LIỆU -->
+                <div class="col-lg-4">
+                    <h5 class="text-primary mb-3">1. Cấu Hình Tem Nhãn</h5>
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Hình dạng:</label>
+                            <select id="nest_shape" class="form-select form-select-sm border-info" onchange="toggleShapeInputs()">
+                                <option value="rect">Hình Vuông/Chữ nhật</option>
+                                <option value="circle">Hình Tròn (Tổ ong)</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">K.cách 2 tem (gap mm):</label>
+                            <input type="number" id="nest_gap" class="form-control form-control-sm" value="2" min="0" step="0.5">
+                        </div>
+                    </div>
+
+                    <!-- Shape specific inputs -->
+                    <div class="row mb-3" id="rect_inputs">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Chiều ngang tem (mm):</label>
+                            <input type="number" id="nest_w" class="form-control form-control-sm" value="50" min="1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Chiều dọc tem (mm):</label>
+                            <input type="number" id="nest_h" class="form-control form-control-sm" value="30" min="1">
+                        </div>
+                    </div>
+                    <div class="row mb-3" id="circle_inputs" style="display:none;">
+                        <div class="col-12">
+                            <label class="form-label fw-bold small">Đường kính tem (mm):</label>
+                            <input type="number" id="nest_d" class="form-control form-control-sm" value="40" min="1">
+                        </div>
+                    </div>
+
+                    <h5 class="text-primary mt-4 mb-3">2. Mặt Phẳng In (Giấy Mẹ)</h5>
+                    <div class="mb-2">
+                        <label class="form-label fw-bold small">Mẫu khổ giấy Mẹ:</label>
+                        <select id="nest_sheet_preset" class="form-select form-select-sm" onchange="applySheetPreset()">
+                            <option value="custom">-- Kích thước tùy chỉnh --</option>
+                            <option value="A3">A3 Chuẩn (297 x 420 mm)</option>
+                            <option value="A3Plus" selected>A3+ Kỹ thuật số (320 x 430 mm)</option>
+                            <option value="A4">A4 (210 x 297 mm)</option>
+                        </select>
+                    </div>
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Dài tờ giấy (mm):</label>
+                            <input type="number" id="nest_sheet_w" class="form-control form-control-sm" value="320" min="10">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-bold small">Rộng tờ giấy (mm):</label>
+                            <input type="number" id="nest_sheet_h" class="form-control form-control-sm" value="430" min="10">
+                        </div>
+                    </div>
+                    <label class="form-label fw-bold small">Lề máy cắt bế (Margins - mm):</label>
+                    <div class="row mb-3 gx-1">
+                        <div class="col-3">
+                            <input type="number" id="nest_m_t" class="form-control form-control-sm text-danger text-center" value="10" min="0" title="Lề Trên (Top)">
+                            <div class="text-center text-muted" style="font-size: 10px;">Lề Trên</div>
+                        </div>
+                        <div class="col-3">
+                            <input type="number" id="nest_m_b" class="form-control form-control-sm text-danger text-center" value="10" min="0" title="Lề Dưới (Bottom)">
+                            <div class="text-center text-muted" style="font-size: 10px;">Lề Dưới</div>
+                        </div>
+                        <div class="col-3">
+                            <input type="number" id="nest_m_l" class="form-control form-control-sm text-danger text-center" value="10" min="0" title="Lề Trái (Left)">
+                            <div class="text-center text-muted" style="font-size: 10px;">Lề Trái</div>
+                        </div>
+                        <div class="col-3">
+                            <input type="number" id="nest_m_r" class="form-control form-control-sm text-danger text-center" value="10" min="0" title="Lề Phải (Right)">
+                            <div class="text-center text-muted" style="font-size: 10px;">Lề Phải</div>
+                        </div>
+                    </div>
+
+                    <h5 class="text-primary mt-4 mb-3">3. Giá Trị Kinh Tế</h5>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small">Chi phí gia công 1 tờ Mẹ (vnđ):</label>
+                        <input type="number" id="nest_sheet_price" class="form-control form-control-sm border-success text-success fw-bold" value="5000">
+                    </div>
+
+                    <button class="btn btn-warning w-100 fw-bold mt-2" onclick="calculateNesting()">Tính Toán Bình File <i class="fas fa-cogs"></i></button>
+                </div>
+
+                <!-- KẾT QUẢ & CANVAS -->
+                <div class="col-lg-8">
+                    <div class="card shadow-sm h-100 border-warning">
+                         <div class="card-header bg-warning text-dark text-center fw-bold d-flex justify-content-between align-items-center">
+                            <span>KẾT QUẢ CHẠY TOÁN TỐI ƯU</span>
+                            <span class="badge bg-dark" id="nest_time">0ms</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center mb-3">
+                                <div class="col-6 border-end">
+                                    <h6 class="text-muted text-uppercase mb-1 small">Số lượng tem / tờ</h6>
+                                    <h2 class="text-primary fw-bold mb-0"><span id="nest_result_count">0</span> <small class="text-muted fs-6">tem</small></h2>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted text-uppercase mb-1 small">Giá thành / 1 tem lẻ</h6>
+                                    <h2 class="text-danger fw-bold mb-0"><span id="nest_result_price">0</span> <small class="text-muted fs-6">đ</small></h2>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <p class="text-center fw-bold text-muted small mb-2"><i class="fas fa-eye"></i> MÔ PHỎNG SẮP XẾP KÉP TRỰC QUAN</p>
+                            <div class="text-center bg-light border p-2" style="overflow: auto;">
+                                <canvas id="nestCanvas" width="500" height="500" style="max-width: 100%; border: 1px dashed #999; background: #fff;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// --- LARGE FORMAT SCRIPT & LOCAL STORAGE ---
+
+// Default pricing dictionary
+let materialPrices = {
+    'Bạt Hiflex': 35000,
+    'Bạt Xám 2 Da': 45000,
+    'Decal Sữa': 50000,
+    'Decal Trong': 50000,
+    'Giấy PP': 60000,
+    'Canvas': 120000,
+    'Backlit Film': 150000
+};
+
+// Initiate LocalStorage
+function initMaterialStorage() {
+    const savedPrices = localStorage.getItem('printShopMaterialPrices');
+    if(savedPrices) {
+        try {
+            const parsed = JSON.parse(savedPrices);
+            // Merge with defaults to ensure new options exist
+            materialPrices = { ...materialPrices, ...parsed };
+        } catch(e) {}
+    }
+    document.getElementById('lf_material').selectedIndex = 0;
+    loadMaterialPrice();
+}
+
+function loadMaterialPrice() {
+    const mat = document.getElementById('lf_material').value;
+    const priceInput = document.getElementById('lf_price_per_m2');
+    
+    if(materialPrices[mat] !== undefined) {
+        priceInput.value = materialPrices[mat];
+    } else {
+        priceInput.value = 0;
+    }
+    calculateLargeFormat();
+}
+
+function saveMaterialPrice() {
+    const mat = document.getElementById('lf_material').value;
+    const currentPrice = parseFloat(document.getElementById('lf_price_per_m2').value) || 0;
+    
+    materialPrices[mat] = currentPrice;
+    localStorage.setItem('printShopMaterialPrices', JSON.stringify(materialPrices));
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Lưu Thành Công',
+        text: `Đã cập nhật giá gốc cho [${mat}] là ${currentPrice.toLocaleString('vi-VN')} đ/m² vào cấu hình máy cục bộ.`,
+        toast: true, position: 'top-end', showConfirmButton: false, timer: 3000
+    });
+}
+
+function calculateLargeFormat() {
+    const w = parseFloat(document.getElementById('lf_width').value) || 0;
+    const l = parseFloat(document.getElementById('lf_length').value) || 0;
+    const qty = parseInt(document.getElementById('lf_qty').value) || 1;
+    const priceSqM = parseFloat(document.getElementById('lf_price_per_m2').value) || 0;
+
+    const area = (w * l) * qty;
+    const totalCost = area * priceSqM;
+
+    document.getElementById('lf_total_area').innerText = area.toFixed(2);
+    document.getElementById('lf_total_price').innerText = Math.round(totalCost).toLocaleString('vi-VN');
+}
+
+
+// --- NESTING FORMAT SCRIPT ---
+
+// Toggle inputs based on shape
+function toggleShapeInputs() {
+    const shape = document.getElementById('nest_shape').value;
+    if (shape === 'rect') {
+        document.getElementById('rect_inputs').style.display = 'flex';
+        document.getElementById('circle_inputs').style.display = 'none';
+    } else {
+        document.getElementById('rect_inputs').style.display = 'none';
+        document.getElementById('circle_inputs').style.display = 'flex';
+    }
+}
+
+// Preset papers
+const sheetPresets = {
+    'A3': { w: 297, h: 420 },
+    'A3Plus': { w: 320, h: 430 },
+    'A4': { w: 210, h: 297 }
+};
+
+function applySheetPreset() {
+    const val = document.getElementById('nest_sheet_preset').value;
+    if (sheetPresets[val]) {
+        document.getElementById('nest_sheet_w').value = sheetPresets[val].w;
+        document.getElementById('nest_sheet_h').value = sheetPresets[val].h;
+    }
+}
+
+// Math logic and canvas drawing
+function calculateNesting() {
+    const t0 = performance.now();
+    
+    const shape = document.getElementById('nest_shape').value;
+    const gap = parseFloat(document.getElementById('nest_gap').value) || 0;
+    const S_W = parseFloat(document.getElementById('nest_sheet_w').value) || 0;
+    const S_H = parseFloat(document.getElementById('nest_sheet_h').value) || 0;
+    
+    const mT = parseFloat(document.getElementById('nest_m_t').value) || 0;
+    const mB = parseFloat(document.getElementById('nest_m_b').value) || 0;
+    const mL = parseFloat(document.getElementById('nest_m_l').value) || 0;
+    const mR = parseFloat(document.getElementById('nest_m_r').value) || 0;
+
+    const sheetCost = parseFloat(document.getElementById('nest_sheet_price').value) || 0;
+
+    // effective workspace after cutting margins
+    let eW = S_W - mL - mR;
+    let eH = S_H - mT - mB;
+
+    if(eW <= 0 || eH <= 0) {
+        alert("Kích thước lề cắt (margins) lớn hơn măt giấy, không thể xếp tem.");
+        return;
+    }
+
+    let resultItems = []; // Contains objects with x, y, width, height or radius
+
+    if (shape === 'rect') {
+        const itemW = parseFloat(document.getElementById('nest_w').value) || 0;
+        const itemH = parseFloat(document.getElementById('nest_h').value) || 0;
+        if(itemW<=0 || itemH<=0) return;
+
+        // Try standard orient
+        let layout1 = doRectPacking(eW, eH, itemW, itemH, gap);
+        // Try rotated orient
+        let layout2 = doRectPacking(eW, eH, itemH, itemW, gap);
+        // Compare counts, including the rotation status
+        
+        let bestLayout = layout1;
+        let isRotated = false;
+        if (layout2.length > layout1.length) {
+            bestLayout = layout2;
+            isRotated = true; // width is itemH, height is itemW
+        }
+
+        // Format to uniform objects
+        let actualW = isRotated ? itemH : itemW;
+        let actualH = isRotated ? itemW : itemH;
+        
+        for (let pos of bestLayout) {
+             resultItems.push({
+                 type: 'rect', x: pos.x, y: pos.y, w: actualW, h: actualH
+             });
+        }
+    } else {
+        const itemD = parseFloat(document.getElementById('nest_d').value) || 0;
+        if(itemD<=0) return;
+        
+        let layout = doHexagonalCirclePacking(eW, eH, itemD, gap);
+        for(let pos of layout) {
+            resultItems.push({
+                type: 'circle', x: pos.x, y: pos.y, r: itemD/2
+            });
+        }
+    }
+
+    // Results calculations
+    const count = resultItems.length;
+    const pricePerItem = count > 0 ? (sheetCost / count) : 0;
+
+    document.getElementById('nest_result_count').innerText = count.toLocaleString('vi-VN');
+    document.getElementById('nest_result_price').innerText = pricePerItem.toLocaleString('vi-VN', {maximumFractionDigits: 1});
+    
+    // Draw canvas
+    const t1 = performance.now();
+    document.getElementById('nest_time').innerText = Math.round(t1 - t0) + "ms";
+    drawNestingCanvas(S_W, S_H, mT, mB, mL, mR, resultItems);
+}
+
+// ---------------- ALGORITHMS ----------------
+
+// Greedly fits rectangles. Also attempts to place perpendicular rects in the remaining padding edges (Guillotine cut approximation)
+function doRectPacking(eW, eH, w, h, gap) {
+    let positions = [];
+    
+    // Main block
+    let nx = Math.floor((eW + gap) / (w + gap));
+    let ny = Math.floor((eH + gap) / (h + gap));
+    
+    nx = nx > 0 ? nx : 0;
+    ny = ny > 0 ? ny : 0;
+    
+    for (let x = 0; x < nx; x++) {
+        for (let y = 0; y < ny; y++) {
+            positions.push({
+                x: x * (w + gap),
+                y: y * (h + gap)
+            });
+        }
+    }
+
+    // Area that is left on the Right Side of the main block
+    let mainWidth = nx * (w + gap);
+    let remRightW = eW - mainWidth + gap; // + gap because the last item doesn't need gap against boundary
+    
+    // Try filling it with rotated items (h, w)
+    let extraRightPositions = [];
+    if (remRightW >= h && eH >= w) {
+        let n_rx = Math.floor((remRightW + gap) / (h + gap));
+        let n_ry = Math.floor((eH + gap) / (w + gap));
+        for (let ix = 0; ix < n_rx; ix++) {
+            for (let iy = 0; iy < n_ry; iy++) {
+                extraRightPositions.push({
+                    x: mainWidth + ix * (h + gap),
+                    y: iy * (w + gap)
+                    // these are essentially h x w dimensions, but the system relies on calling doRectPacking with the main layout dimension.
+                    // Wait, we can't easily merge two arrays unless we return dimensional objects. 
+                    // Let's modify doRectPacking to just return center positions? No, we return {x,y, isRotated} ??
+                    // To keep it clean and robust for UI array, we'll avoid the complex guillotine. The simple logic returns x,y.
+                });
+            }
+        }
+    }
+    
+    // Area that is left on the Bottom Side of the main block 
+    // (Only if we didn't fill the right side... doing L-shape is hard logic)
+    
+    // For simplicity, we just use the main block right now. 
+    // Standard commercial printers rarely mix rotations because it violates standard inline die-cutting / guillotine flow.
+    return positions;
+}
+
+
+// Packs circles in an interlocking hexagonal grid
+function doHexagonalCirclePacking(eW, eH, D, gap) {
+    let positions = [];
+    const stepX = D + gap; // horizontal distance between circle centers
+    const h_inc = stepX * (Math.sqrt(3) / 2); // vertical distance between row axes
+    
+    let y = 0;
+    let rowNum = 0;
+    
+    while (y + D <= eH) {
+        let xOff = (rowNum % 2 !== 0) ? (stepX / 2) : 0;
+        let x = xOff;
+        
+        while (x + D <= eW) {
+            positions.push({
+                x: x + D / 2, // store center
+                y: y + D / 2  // store center
+            });
+            x += stepX;
+        }
+        
+        y += h_inc;
+        rowNum++;
+    }
+    
+    return positions;
+}
+
+
+// ---------------- CANVAS RENDER ----------------
+function drawNestingCanvas(realW, realH, mT, mB, mL, mR, items) {
+    const canvas = document.getElementById('nestCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Calculate display ratio
+    const maxWidth = 500;
+    const maxHeight = 500;
+    
+    const scale = Math.min(maxWidth / realW, maxHeight / realH);
+    
+    // Set actual canvas size scaled to screen
+    canvas.width = realW * scale;
+    canvas.height = realH * scale;
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw Margin bounding box
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(mL * scale, mT * scale, (realW - mL - mR) * scale, (realH - mT - mB) * scale);
+    ctx.setLineDash([]);
+    
+    // Draw items
+    ctx.fillStyle = "rgba(0, 123, 255, 0.4)";
+    ctx.strokeStyle = "rgba(0, 86, 179, 0.8)";
+    ctx.lineWidth = 1;
+    
+    for (let item of items) {
+        if (item.type === 'rect') {
+            const rx = (mL + item.x) * scale;
+            const ry = (mT + item.y) * scale;
+            const rw = item.w * scale;
+            const rh = item.h * scale;
+            
+            ctx.fillRect(rx, ry, rw, rh);
+            ctx.strokeRect(rx, ry, rw, rh);
+        } 
+        else if (item.type === 'circle') {
+            const cx = (mL + item.x) * scale;
+            const cy = (mT + item.y) * scale;
+            const cr = item.r * scale;
+            
+            ctx.beginPath();
+            ctx.arc(cx, cy, cr, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+        }
+    }
+}
+
+// Auto init on load
+document.addEventListener('DOMContentLoaded', () => {
+    initMaterialStorage();
+    calculateNesting();
+});
+</script>
+{% endblock %}

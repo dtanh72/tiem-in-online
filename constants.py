@@ -1,4 +1,5 @@
 # KHAI BÁO LINK FILE
+COMBOS_HTML = "HHDV/combos.html"
 DASHBOARD_HTML = "dashboard.html"
 SERVICES_HTML = "HHDV/services.html"
 EDIT_SERVICE_HTML = "HHDV/edit_service.html"

@@ -20,6 +20,8 @@ from routes.equipment import equipment_bp
 from routes.suppliers import suppliers_bp
 from routes.coupons import coupons_bp
 from routes.outsource import outsource_bp
+from routes.combos import combos_bp
+from routes.tools import tools_bp
 
 load_dotenv()
 
@@ -64,6 +66,8 @@ app.register_blueprint(equipment_bp)
 app.register_blueprint(suppliers_bp)
 app.register_blueprint(coupons_bp)
 app.register_blueprint(outsource_bp)
+app.register_blueprint(combos_bp)
+app.register_blueprint(tools_bp)
 
 # Thêm route setup admin
 from db import get_db_connection

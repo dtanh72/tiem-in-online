@@ -96,6 +96,10 @@
                         data-bs-toggle="modal" data-bs-target="#quickAddServiceModal">
                     + Thêm nhanh Dịch vụ
                 </button>
+                <button class="btn btn-sm btn-outline-primary ms-2 fw-bold" type="button" 
+                        data-bs-toggle="modal" data-bs-target="#addComboModal">
+                    🎁 Thêm Gói Combo
+                </button>
             </div>
             
             <table class="table table-bordered table-hover">
@@ -157,6 +161,7 @@
                 <input type="hidden" name="qty_l1[]" class="h-qty-l1" value="1">
                 <input type="hidden" name="qty_l2[]" class="h-qty-l2" value="1">
                 <input type="hidden" name="qty_l3[]" class="h-qty-l3" value="1">
+                <input type="hidden" name="combo_id[]" class="h-combo-id" value="">
                 <div class="text-muted small text-end mt-1">Tổng: <span class="total-qty-display fw-bold">1</span> <span class="base-unit-display"></span></div>
             </td>
 
@@ -217,6 +222,33 @@
 		</div>
 	</div>
 
+	<div class="modal fade" id="addComboModal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">Thêm Gói Combo vào Báo Giá</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<div class="mb-3">
+						<label class="form-label">Chọn Combo:</label>
+						<select id="modal_combo_select" class="form-select">
+							<option value="">-- Chọn Gói Combo --</option>
+						</select>
+					</div>
+					<div class="mb-3">
+						<label class="form-label">Số lượng báo giá (Combo):</label>
+						<input type="number" id="modal_combo_qty" class="form-control" value="1" min="1">
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+					<button type="button" id="confirmAddCombo" class="btn btn-primary">Thêm Combo này</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
     <script>
 		// 🟢 BIẾN TOÀN CỤC LƯU TRỮ DỮ LIỆU MÃ KHUYẾN MÃI
 		let currentCoupon = null;
@@ -266,6 +298,88 @@
             const tableBody = document.getElementById('order_items_body');
             const templateRow = document.getElementById('service_row_template');
             const taxRateInput = document.getElementById('tax_rate');
+            
+            // --- Combo Logic ---
+            const combosData = {{ combos_json|safe }};
+            const comboSelect = document.getElementById('modal_combo_select');
+            if (comboSelect) {
+                combosData.forEach(c => {
+                    let opt = new Option(`${c.combo_name} (${c.combo_price.toLocaleString('vi-VN')} đ)`, c.combo_id);
+                    comboSelect.add(opt);
+                });
+            }
+
+            document.getElementById('confirmAddCombo')?.addEventListener('click', function() {
+                const cId = parseInt(comboSelect.value);
+                const qtyMult = parseInt(document.getElementById('modal_combo_qty').value) || 1;
+                
+                if (!cId) return;
+                
+                const combo = combosData.find(c => c.combo_id === cId);
+                if (!combo) return;
+                
+                // Calculate total base price of items
+                let totalBasePrice = 0;
+                combo.items.forEach(item => {
+                    totalBasePrice += item.base_price * item.quantity;
+                });
+                
+                combo.items.forEach(item => {
+                    // Caculate discounted unit price for this item component
+                    let discountedPrice = 0;
+                    if (totalBasePrice > 0) {
+                        discountedPrice = item.base_price * (combo.combo_price / totalBasePrice);
+                    } else {
+                        // fallback if base_prices are 0
+                        discountedPrice = combo.combo_price / combo.items.length;
+                    }
+                    
+                    // Add new row for this item
+                    const newRow = templateRow.cloneNode(true);
+                    newRow.id = '';
+                    newRow.classList.add('service-row');
+                    newRow.style.backgroundColor = '#fdf8ec'; // Highlight combo rows
+                    tableBody.appendChild(newRow);
+                    attachRowListeners(newRow);
+                    
+                    // Set combobox
+                    const sel = $(newRow).find('.service_select');
+                    sel.val(item.service_id);
+                    sel.select2({ theme: 'bootstrap-5', width: '100%' });
+                    sel.trigger('change');
+                    
+                    // Override qty and price AFTER trigger
+                    setTimeout(() => {
+                        const totalChildQty = item.quantity * qtyMult;
+                        newRow.querySelector('.qty-l1').value = totalChildQty;
+                        newRow.querySelector('.qty-l2').value = 1;
+                        newRow.querySelector('.qty-l3').value = 1;
+                        newRow.querySelector('.price_input').value = Math.round(discountedPrice);
+                        newRow.querySelector('.h-combo-id').value = combo.combo_id;
+                        
+                        // Add combo label to UI
+                        const labelSpan = document.createElement('span');
+                        labelSpan.className = 'badge bg-warning text-dark ms-2 mt-1 px-1';
+                        labelSpan.textContent = `[${combo.combo_name}]`;
+                        newRow.querySelector('td:nth-child(1)').appendChild(labelSpan);
+                        
+                        // Update trigger manually to sync DOM
+                        const qtyL1 = newRow.querySelector('.qty-l1');
+                        const event = new Event('input', {bubbles: true});
+                        qtyL1.dispatchEvent(event);
+                    }, 50);
+                });
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Thêm Combo Thành Công',
+                    text: `Đã bung ${qtyMult} gói ${combo.combo_name} thành ${combo.items.length} dòng dịch vụ chi tiết!`,
+                    toast: true, position: 'top-end', timer: 3000, showConfirmButton: false
+                });
+                bootstrap.Modal.getInstance(document.getElementById('addComboModal')).hide();
+                comboSelect.value = '';
+                document.getElementById('modal_combo_qty').value = 1;
+            });
             
             function addNewServiceRow() {
                 const newRow = templateRow.cloneNode(true);

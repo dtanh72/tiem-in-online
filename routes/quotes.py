@@ -63,6 +63,7 @@ def create_quote_page():
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     today = datetime.date.today()
+    import json
     
     cur.execute("SELECT customer_id, customer_name, phone, email, address, company_name, tax_id FROM Customers WHERE is_active = TRUE ORDER BY customer_name")
     customers_list = cur.fetchall()
@@ -78,13 +79,34 @@ def create_quote_page():
     cur.execute(sql_coupons, (today, today))
     active_coupons = cur.fetchall()
     
+    # Query Combos
+    cur.execute("SELECT * FROM Combos WHERE is_active = TRUE")
+    combos_raw = cur.fetchall()
+    combos_list = []
+    for c in combos_raw:
+        cur.execute("""
+            SELECT ci.service_id, ci.quantity, s.service_name, s.base_price,
+                   s.unit, s.unit_level2, s.unit_level3
+            FROM Combo_Items ci 
+            JOIN Services s ON ci.service_id = s.service_id 
+            WHERE ci.combo_id = %s
+        """, (c['combo_id'],))
+        c['items'] = cur.fetchall()
+        c['combo_price'] = float(c['combo_price'])
+        for item in c['items']:
+            item['base_price'] = float(item['base_price'])
+        combos_list.append(c)
+        
+    combos_json = json.dumps(combos_list)
+    
     cur.close()
     conn.close()
     
     return render_template(TAO_BG_HTML, 
                            customers_list=customers_list, 
                            services_list=services_list,
-                           active_coupons=active_coupons)
+                           active_coupons=active_coupons,
+                           combos_json=combos_json)
 
 @quotes_bp.route('/submit_quote', methods=['POST'])
 @requires_permission('sale')
@@ -104,6 +126,7 @@ def submit_quote():
         service_ids = request.form.getlist('service_id[]')
         quantities = request.form.getlist('quantity[]')
         unit_prices = request.form.getlist('unit_price[]')
+        combo_ids = request.form.getlist('combo_id[]')
         
         subtotal = 0
         for i in range(len(service_ids)):
@@ -125,12 +148,13 @@ def submit_quote():
         new_quote_id = cur.fetchone()['quote_id']
 
         for i in range(len(service_ids)):
+            c_id = combo_ids[i] if i < len(combo_ids) and combo_ids[i] != '' else None
             sql_item = """
-                INSERT INTO Quote_Items (quote_id, service_id, description, quantity, unit_price, line_total)
-                VALUES (%s, %s, '', %s, %s, %s)
+                INSERT INTO Quote_Items (quote_id, service_id, combo_id, description, quantity, unit_price, line_total)
+                VALUES (%s, %s, %s, '', %s, %s, %s)
             """
             line_total = int(quantities[i]) * float(unit_prices[i])
-            cur.execute(sql_item, (new_quote_id, service_ids[i], quantities[i], unit_prices[i], line_total))
+            cur.execute(sql_item, (new_quote_id, service_ids[i], c_id, quantities[i], unit_prices[i], line_total))
         
         log_system_action(
             user_id=current_user.id,
@@ -170,9 +194,10 @@ def quote_detail_page(quote_id):
     quote_info = cur.fetchone()
     
     sql_items = """
-        SELECT QI.quantity, QI.unit_price, QI.line_total, S.service_name, S.unit
+        SELECT QI.quantity, QI.unit_price, QI.line_total, S.service_name, S.unit, C.combo_name
         FROM Quote_Items AS QI
         JOIN Services AS S ON QI.service_id = S.service_id
+        LEFT JOIN Combos AS C ON QI.combo_id = C.combo_id
         WHERE QI.quote_id = %s
     """
     cur.execute(sql_items, (quote_id,))
@@ -200,9 +225,10 @@ def print_quote_page(quote_id):
     quote_info = cur.fetchone()
     
     sql_items = """
-        SELECT QI.quantity, QI.unit_price, QI.line_total, S.service_name, S.unit
+        SELECT QI.quantity, QI.unit_price, QI.line_total, S.service_name, S.unit, C.combo_name
         FROM Quote_Items AS QI
         JOIN Services AS S ON QI.service_id = S.service_id
+        LEFT JOIN Combos AS C ON QI.combo_id = C.combo_id
         WHERE QI.quote_id = %s
     """
     cur.execute(sql_items, (quote_id,))
@@ -283,10 +309,10 @@ def convert_quote_to_order(quote_id):
 
         for item in quote_items_list:
             sql_item = """
-                INSERT INTO Order_Items (order_id, service_id, quantity, unit_price, line_total)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO Order_Items (order_id, service_id, combo_id, quantity, unit_price, line_total)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """
-            cur.execute(sql_item, (new_order_id, item['service_id'], item['quantity'], item['unit_price'], item['line_total']))
+            cur.execute(sql_item, (new_order_id, item['service_id'], item.get('combo_id'), item['quantity'], item['unit_price'], item['line_total']))
             
             cur.execute("SELECT material_id, quantity_consumed FROM Service_Materials WHERE service_id = %s", (item['service_id'],))
             boms = cur.fetchall()

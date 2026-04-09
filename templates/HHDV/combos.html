@@ -1,0 +1,414 @@
+{% extends 'UI/base.html' %}
+
+{% block title %}QUẢN LÝ GÓI COMBO{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <h2>Quản lý Gói Combo Dịch vụ</h2>
+    
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Thêm Combo Mới</h5>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('combos.add_combo') }}" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Tên Combo:</label>
+                        <input type="text" name="combo_name" class="form-control" required placeholder="VD: Combo Khai Trương">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Giá bán Ưu đãi (vnđ):</label>
+                        <input type="number" name="combo_price" class="form-control" required min="0" value="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Mô tả:</label>
+                        <textarea name="description" class="form-control" rows="1" placeholder="Mô tả combo..."></textarea>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Dịch vụ bao gồm trong Combo:</label>
+                    <button type="button" class="btn btn-outline-success btn-sm ms-2 mb-2" data-bs-toggle="modal" data-bs-target="#quickAddServiceModal">+ Thêm nhanh Dịch vụ</button>
+                    <table class="table table-bordered table-sm" id="comboItemsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 30%;">Chọn Dịch vụ</th>
+                                <th style="width: 45%;">Chi tiết Số lượng (Nhân dồn)</th>
+                                <th style="width: 15%;">Đơn giá gốc (vnđ)</th>
+                                <th style="width: 10%;">Hành động</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comboItemsBody">
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="4" class="text-end">
+                                    <h5 class="text-danger mt-2 mb-0">Tổng giá trị gốc: <span id="totalBaseValue">0</span> vnđ</h5>
+                                    <small class="text-muted">(Tổng giá trị các dịch vụ lẻ, dùng để tham khảo định giá combo)</small>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="addComboItemRow()">+ Thêm dòng dịch vụ</button>
+                </div>
+                
+                <table hidden>
+                    <tr id="combo_row_template">
+                        <td>
+                            <select name="service_id[]" class="service_select form-select" required>
+                                <option value="">-- Chọn dịch vụ --</option>
+                                {% for s in services_list %}
+                                    <option value="{{ s.service_id }}"
+                                            data-price="{{ s.base_price }}"
+                                            data-u1="{{ s.unit }}"
+                                            data-u2="{{ s.unit_level2 or '' }}"
+                                            data-u3="{{ s.unit_level3 or '' }}">
+                                        {{ s.service_name }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <div class="qty-container d-flex gap-2 align-items-start flex-wrap">
+                                <div class="area-calculator" style="display:none; width: 100%; margin-bottom: 5px;">
+                                    <div class="d-flex gap-2">
+                                        <div class="input-group input-group-sm w-50">
+                                            <span class="input-group-text bg-info text-white">C.Dài (m)</span>
+                                            <input type="number" class="form-control calc-length" value="0" min="0" step="0.01">
+                                        </div>
+                                        <div class="input-group input-group-sm w-50">
+                                            <span class="input-group-text bg-info text-white">C.Rộng (m)</span>
+                                            <input type="number" class="form-control calc-width" value="0" min="0" step="0.01">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="input-group input-group-sm" style="flex: 1; min-width: 120px;">
+                                    <input type="number" class="form-control qty-input qty-l1" value="1" min="0.01" step="0.01" required>
+                                    <span class="input-group-text u1-label">...</span>
+                                </div>
+                                <div class="input-group input-group-sm qty-wrapper-l2" style="display:none; flex: 1; min-width: 120px;">
+                                    <span class="input-group-text">x</span>
+                                    <input type="number" class="form-control qty-input qty-l2" value="1" min="1">
+                                    <span class="input-group-text u2-label">...</span>
+                                </div>
+                                <div class="input-group input-group-sm qty-wrapper-l3" style="display:none; flex: 1; min-width: 120px;">
+                                    <span class="input-group-text">x</span>
+                                    <input type="number" class="form-control qty-input qty-l3" value="1" min="1">
+                                    <span class="input-group-text u3-label">...</span>
+                                </div>
+                            </div>
+                            <input type="hidden" name="quantity[]" class="final-qty" value="1">
+                            <small class="text-muted d-block mt-1">Tổng SL: <span class="total-qty-display fw-bold">1</span> <span class="base-unit-display"></span></small>
+                        </td>
+                        <td>
+                            <input type="text" class="price_display form-control-plaintext text-end fw-bold" readonly value="0">
+                        </td>
+                        <td class="text-center">
+                            <button type="button" class="btn btn-danger btn-sm" onclick="deleteComboRow(this)">Xóa</button>
+                        </td>
+                    </tr>
+                </table>
+
+                <button type="submit" class="btn btn-success">Lưu Combo</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white">
+            <h5 class="mb-0">Danh sách Combo đang có</h5>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Tên Combo</th>
+                        <th>Chi tiết dịch vụ</th>
+                        <th>Giá bán ra</th>
+                        <th>Hành động</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in combos_list %}
+                    <tr class="{% if not c.is_active %}table-secondary text-muted{% endif %}">
+                        <td>#{{ c.combo_id }}</td>
+                        <td class="fw-bold">
+                            {{ c.combo_name }}<br>
+                            <small class="text-muted fw-normal">{{ c.description }}</small>
+                            {% if not c.is_active %}<span class="badge bg-danger ms-2">Đã khóa</span>{% endif %}
+                        </td>
+                        <td>
+                            <ul class="mb-0 ps-3">
+                                {% for item in c.items %}
+                                    <li>{{ item.service_name }} (SL: {{ item.quantity }})</li>
+                                {% endfor %}
+                            </ul>
+                        </td>
+                        <td class="text-success fw-bold">{{ c.combo_price|currency }}</td>
+                        <td>
+                            <form action="{{ url_for('combos.toggle_combo', combo_id=c.combo_id) }}" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                {% if c.is_active %}
+                                    <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Khóa Combo này?');">Khóa</button>
+                                {% else %}
+                                    <button type="submit" class="btn btn-sm btn-info">Mở lại</button>
+                                {% endif %}
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-3">Chưa có combo nào.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="quickAddServiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Thêm nhanh Dịch vụ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="quickAddServiceForm">
+                    <div class="mb-3">
+                        <label class="form-label">Tên Dịch vụ:</label>
+                        <input type="text" id="qs_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Đơn giá (vnđ):</label>
+                        <input type="number" id="qs_price" class="form-control" value="0">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label small">ĐV Tầng 1 (Cơ sở):</label>
+                            <input type="text" id="qs_unit" class="form-control" required placeholder="Tờ">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label small">ĐV Tầng 2 (x):</label>
+                            <input type="text" id="qs_unit2" class="form-control" placeholder="Cuốn">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label small">ĐV Tầng 3 (x):</label>
+                            <input type="text" id="qs_unit3" class="form-control" placeholder="Bộ">
+                        </div>
+                    </div>
+                    <div id="quickAddServiceError" class="text-danger small mt-2"></div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="saveQuickService" class="btn btn-primary">Lưu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    addComboItemRow();
+
+    // Quick Add Service Logic
+    const saveServiceBtn = document.getElementById('saveQuickService');
+    const quickAddServiceForm = document.getElementById('quickAddServiceForm');
+    const quickAddServiceModal = new bootstrap.Modal(document.getElementById('quickAddServiceModal'));
+    const serviceErrorDiv = document.getElementById('quickAddServiceError');
+
+    saveServiceBtn.addEventListener('click', function() {
+        const nameInput = document.getElementById('qs_name');
+        const priceInput = document.getElementById('qs_price');
+        const u1 = document.getElementById('qs_unit');
+        const u2 = document.getElementById('qs_unit2'); 
+        const u3 = document.getElementById('qs_unit3'); 
+        
+        if (!nameInput.value || !priceInput.value || !u1.value) return;
+        
+        saveServiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang lưu...';
+        saveServiceBtn.disabled = true;
+
+        const formData = new FormData(); formData.append('csrf_token', '{{ csrf_token() }}');
+        formData.append('service_name', nameInput.value);
+        formData.append('base_price', priceInput.value);
+        formData.append('unit', u1.value);
+        formData.append('unit_level2', u2.value); 
+        formData.append('unit_level3', u3.value); 
+        
+        fetch("{{ url_for('services.ajax_add_service') }}", { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const opt = document.createElement('option');
+                opt.value = data.new_id;
+                opt.text = data.new_name;
+                opt.selected = true;
+                
+                opt.setAttribute('data-price', data.new_price);
+                opt.setAttribute('data-u1', data.new_u1);
+                opt.setAttribute('data-u2', data.new_u2);
+                opt.setAttribute('data-u3', data.new_u3);
+
+                const listSelects = document.querySelectorAll('.service_select');
+                if (listSelects.length > 0) {
+                    listSelects.forEach(s => {
+                        $(s).append(opt.cloneNode(true));
+                    });
+                    const lastSelect = listSelects[listSelects.length - 1];
+                    $(lastSelect).val(data.new_id).trigger('change');
+                }
+
+                quickAddServiceModal.hide();
+                quickAddServiceForm.reset();
+                serviceErrorDiv.textContent = '';
+            } else {
+                serviceErrorDiv.textContent = 'Lỗi: ' + data.error;
+            }
+        })
+        .finally(() => {
+            saveServiceBtn.innerHTML = 'Lưu';
+            saveServiceBtn.disabled = false;
+        });
+    });
+});
+
+function addComboItemRow() {
+    const tbody = document.getElementById('comboItemsBody');
+    const templateRow = document.getElementById('combo_row_template');
+    
+    if(!templateRow) return;
+
+    const newRow = templateRow.cloneNode(true);
+    newRow.id = '';
+    newRow.classList.add('combo-item-row');
+    tbody.appendChild(newRow);
+    
+    attachRowListeners(newRow);
+    
+    $(newRow).find('.service_select').select2({
+        theme: 'bootstrap-5',
+        width: '100%'
+    });
+}
+
+function attachRowListeners(row) {
+    const serviceSelect = row.querySelector('.service_select');
+    const qtyL1 = row.querySelector('.qty-l1');
+    const qtyL2 = row.querySelector('.qty-l2');
+    const qtyL3 = row.querySelector('.qty-l3');
+    const wrapL2 = row.querySelector('.qty-wrapper-l2');
+    const wrapL3 = row.querySelector('.qty-wrapper-l3');
+    const lblU1 = row.querySelector('.u1-label');
+    const lblU2 = row.querySelector('.u2-label');
+    const lblU3 = row.querySelector('.u3-label');
+    const finalQtyInput = row.querySelector('.final-qty');
+    const totalQtyDisplay = row.querySelector('.total-qty-display');
+    const baseUnitDisplay = row.querySelector('.base-unit-display');
+    const priceDisplay = row.querySelector('.price_display');
+    const calcAreaWrapper = row.querySelector('.area-calculator');
+    const calcLength = row.querySelector('.calc-length');
+    const calcWidth = row.querySelector('.calc-width');
+
+    function updateCalculations() {
+        // Calculate UOM
+        const v1 = parseFloat(qtyL1.value) || 0;
+        const v2 = (wrapL2.style.display !== 'none') ? (parseFloat(qtyL2.value) || 1) : 1;
+        const v3 = (wrapL3.style.display !== 'none') ? (parseFloat(qtyL3.value) || 1) : 1;
+        
+        const total = v1 * v2 * v3;
+        finalQtyInput.value = Math.ceil(total); // combo quantity should be integer
+        totalQtyDisplay.textContent = Math.ceil(total).toLocaleString('vi-VN');
+        
+        // Update price
+        let price = 0;
+        if (serviceSelect && serviceSelect.selectedIndex >= 0) {
+            const opt = serviceSelect.options[serviceSelect.selectedIndex];
+            price = parseFloat(opt.getAttribute('data-price')) || 0;
+        }
+        const rowTotal = Math.ceil(total) * price;
+        priceDisplay.value = price.toLocaleString('vi-VN');
+        
+        // Calc Master Total
+        updateMasterTotal();
+    }
+
+    function calculateArea() {
+        const l = parseFloat(calcLength.value) || 0;
+        const w = parseFloat(calcWidth.value) || 0;
+        qtyL1.value = (l * w).toFixed(2);
+        updateCalculations();
+    }
+
+    $(serviceSelect).on('change', function() {
+        const opt = this.options[this.selectedIndex];
+        if (!opt || !opt.value) return;
+
+        const u1 = (opt.getAttribute('data-u1') || '').trim();
+        const u2 = (opt.getAttribute('data-u2') || '').trim();
+        const u3 = (opt.getAttribute('data-u3') || '').trim();
+
+        lblU1.textContent = u1;
+        baseUnitDisplay.textContent = u1;
+
+        if (u2) { wrapL2.style.display = 'flex'; lblU2.textContent = u2; } 
+        else { wrapL2.style.display = 'none'; qtyL2.value = 1; }
+
+        if (u3) { wrapL3.style.display = 'flex'; lblU3.textContent = u3; } 
+        else { wrapL3.style.display = 'none'; qtyL3.value = 1; }
+
+        // Area Calculator Logic for m2
+        if (u1.toLowerCase() === 'm2' || u1.toLowerCase() === 'mét vuông') {
+            calcAreaWrapper.style.display = 'block';
+            qtyL1.readOnly = true; // Auto calculated from length x width
+            calculateArea();
+        } else {
+            calcAreaWrapper.style.display = 'none';
+            qtyL1.readOnly = false;
+        }
+
+        updateCalculations();
+    });
+
+    qtyL1.addEventListener('input', updateCalculations);
+    qtyL2.addEventListener('input', updateCalculations);
+    qtyL3.addEventListener('input', updateCalculations);
+
+    calcLength.addEventListener('input', calculateArea);
+    calcWidth.addEventListener('input', calculateArea);
+}
+
+function deleteComboRow(btn) {
+    const tbody = document.getElementById('comboItemsBody');
+    if (tbody.querySelectorAll('.combo-item-row').length <= 1) {
+        alert("Phải có ít nhất 1 dịch vụ trong Combo!");
+        return;
+    }
+    btn.closest('tr').remove();
+    updateMasterTotal();
+}
+
+function updateMasterTotal() {
+    let grandTotal = 0;
+    document.querySelectorAll('.combo-item-row').forEach(row => {
+        const qty = parseFloat(row.querySelector('.final-qty').value) || 0;
+        const serviceSelect = row.querySelector('.service_select');
+        let price = 0;
+        if (serviceSelect && serviceSelect.selectedIndex >= 0) {
+            price = parseFloat(serviceSelect.options[serviceSelect.selectedIndex].getAttribute('data-price')) || 0;
+        }
+        grandTotal += (qty * price);
+    });
+    
+    const displayTotal = document.getElementById('totalBaseValue');
+    if(displayTotal) {
+        displayTotal.textContent = grandTotal.toLocaleString('vi-VN');
+    }
+}
+</script>
+{% endblock %}
