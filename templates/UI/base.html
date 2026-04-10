@@ -40,6 +40,8 @@
     </style>
 
     <title>{% block title %}Hệ thống Quản lý{% endblock %}</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 </head>
 <body>
 	{% if current_user.is_authenticated %}

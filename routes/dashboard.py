@@ -9,7 +9,6 @@ from constants import DASHBOARD_HTML
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
-@dashboard_bp.route('/')
 @dashboard_bp.route('/dashboard')
 @login_required
 def dashboard_page():
@@ -62,6 +61,20 @@ def dashboard_page():
     monthly_labels = [row['month_str'] for row in monthly_data]
     monthly_revenue = [float(row['total'] or 0) for row in monthly_data]
 
+    # Landing page visit stats
+    cur.execute("SELECT COUNT(*) as total_visits FROM page_visits")
+    res_visits = cur.fetchone()
+    total_visits = res_visits['total_visits'] if res_visits else 0
+    
+    cur.execute("""
+        SELECT referrer, COUNT(*) as count 
+        FROM page_visits 
+        GROUP BY referrer 
+        ORDER BY count DESC 
+        LIMIT 5
+    """)
+    top_referrers = cur.fetchall()
+
     conn.close()
 
     return render_template(DASHBOARD_HTML, 
@@ -79,4 +92,6 @@ def dashboard_page():
                            low_stock_count=0,
                            top_services=[],
                            monthly_revenue=monthly_revenue,
-                           monthly_labels=monthly_labels)
+                           monthly_labels=monthly_labels,
+                           total_visits=total_visits,
+                           top_referrers=top_referrers)

@@ -1,5 +1,5 @@
 import os
-from flask import Flask, redirect, url_for, flash
+from flask import Flask, redirect, url_for, flash, render_template, request
 import psycopg2
 from dotenv import load_dotenv
 
@@ -94,10 +94,29 @@ def setup_admin():
         cur.close()
         conn.close()
 
-# Route mặc định
+# Route mặc định - Landing Page
 @app.route('/')
 def index():
-    return redirect(url_for('dashboard.dashboard_page'))
+    # Ghi nhận lượt truy cập
+    try:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor()
+            ip_addr = request.remote_addr
+            referrer = request.referrer or 'Direct'
+            user_agent = request.user_agent.string
+            
+            cur.execute("""
+                INSERT INTO page_visits (ip_address, referrer, user_agent)
+                VALUES (%s, %s, %s)
+            """, (ip_addr, referrer, user_agent))
+            conn.commit()
+            cur.close()
+            conn.close()
+    except Exception as e:
+        print(f"Lỗi ghi nhận truy cập: {e}")
+        
+    return render_template('index.html')
 
 # Bắt lỗi mất kết nối DB toàn cục
 @app.errorhandler(psycopg2.OperationalError)
