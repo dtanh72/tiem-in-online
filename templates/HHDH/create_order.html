@@ -703,7 +703,6 @@
             const saveBtn = document.getElementById('saveQuickAddCustomer');
             const mainCustomerSelect = document.getElementById('customer_id');
             const quickAddForm = document.getElementById('quickAddCustomerForm');
-            const quickAddModal = new bootstrap.Modal(document.getElementById('quickAddCustomerModal'));
             const errorDiv = document.getElementById('quickAddError');
 
             saveBtn.addEventListener('click', function() {
@@ -724,7 +723,8 @@
                         
                         quickAddForm.reset();
                         errorDiv.textContent = '';
-                        quickAddModal.hide();
+                        const modalInst = bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal'));
+                        if (modalInst) modalInst.hide();
                     } else {
                         errorDiv.textContent = 'Lỗi: ' + data.error;
                     }
@@ -733,7 +733,6 @@
 			
 			const saveServiceBtn = document.getElementById('saveQuickService');
 			const quickAddServiceForm = document.getElementById('quickAddServiceForm');
-			const quickAddServiceModal = new bootstrap.Modal(document.getElementById('quickAddServiceModal'));
 			const serviceErrorDiv = document.getElementById('quickAddServiceError');
 
 			saveServiceBtn.addEventListener('click', function() {
@@ -778,7 +777,8 @@
                             $(lastSelect).val(data.new_id).trigger('change');
 						}
 
-						quickAddServiceModal.hide();
+						const mInst = bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal'));
+                        if(mInst) mInst.hide();
 						quickAddServiceForm.reset();
                         serviceErrorDiv.textContent = '';
 					} else {

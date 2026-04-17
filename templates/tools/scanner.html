@@ -1,0 +1,242 @@
+{% extends "UI/base.html" %}
+
+{% block content %}
+<!-- Note: base.html might require login for the navbar, but we will make an exception or provide a simpler layout if we aren't logged in -->
+<div class="container mt-4">
+    <h2><i class="fas fa-network-wired"></i> Scanner Quét Máy In / Photocopy (Public)</h2>
+    <p class="text-secondary">Công cụ này không cần đăng nhập tĩnh. Sử dụng để quét tự động địa chỉ IP hoặc dải mạng lấy tổng số lượt In (Counter).</p>
+    
+    <div class="card card-custom mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Cấu hình Quét Network (SNMP)</h5>
+            <form id="scannerForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-5">
+                        <label>Danh sách IP máy in (cách nhau bằng dấu phẩy):</label>
+                        <input type="text" class="form-control" name="ip_list" id="ipListInput" value="{{ default_ips }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label>SNMP Community:</label>
+                        <input type="text" class="form-control" name="community" value="public" required>
+                    </div>
+                    <div class="col-md-4 mt-4 pt-2">
+                        <button type="submit" class="btn btn-primary" id="btnScan"><i class="fas fa-search"></i> Bắt đầu Quét</button>
+                        <button type="button" class="btn btn-danger" id="btnCancel" style="display: none;"><i class="fas fa-times"></i> Hủy tiến trình</button>
+                    </div>
+                </div>
+                
+                <div class="row mt-3" id="progressContainer" style="display: none;">
+                    <div class="col-12">
+                        <label class="form-label d-flex justify-content-between">
+                            <strong>Tiến độ Quét:</strong>
+                            <span id="progressText">0 / 0</span>
+                        </label>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" id="scanProgressBar" role="progressbar" style="width: 0%;">0%</div>
+                        </div>
+                        <small class="text-muted mt-1 d-block" id="progressStatus">Đang chuẩn bị...</small>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card card-custom" id="resultsCard" style="display: none;">
+        <div class="card-body">
+            <h5 class="card-title">Kết quả Quét & Đã được lưu vào hệ thống local</h5>
+            <div class="table-responsive">
+                <table class="table table-bordered" id="scanResultsTable">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>IP Address</th>
+                            <th>Trạng Thái</th>
+                            <th>Counter (Trang In)</th>
+                            <th>Thời gian lưu</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="alert alert-info" id="dbSuccessAlert" style="display: none;">
+                <i class="fas fa-database"></i> Đã đồng bộ <strong id="dbUpdatedCount">0</strong> thiết bị vào hệ thống Thiết bị cửa hàng.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let isScanning = false;
+let successfulIpsInThisScan = new Set();
+const CACHE_KEY = 'cachedScannedIps';
+const CACHE_DAYS = 30;
+
+function getCachedIps() {
+    try {
+        const item = localStorage.getItem(CACHE_KEY);
+        if(!item) return null;
+        const parsed = JSON.parse(item);
+        if(new Date().getTime() > parsed.expiry) {
+            localStorage.removeItem(CACHE_KEY);
+            return null;
+        }
+        return parsed.ips;
+    } catch(e) {
+        return null;
+    }
+}
+
+function saveCachedIps(ips) {
+    const expiry = new Date().getTime() + CACHE_DAYS * 24 * 60 * 60 * 1000;
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ expiry, ips }));
+}
+
+document.getElementById('btnCancel').addEventListener('click', function() {
+    isScanning = false;
+    document.getElementById('progressStatus').innerText = "Đang hủy tiến trình... Vui lòng đợi nốt lô hiện tại.";
+});
+
+document.getElementById('scannerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if(isScanning) return;
+    
+    isScanning = true;
+    const btn = document.getElementById('btnScan');
+    const btnCancel = document.getElementById('btnCancel');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang quét...';
+    btn.disabled = true;
+    btnCancel.style.display = 'inline-block';
+    btnCancel.disabled = false;
+    
+    document.getElementById('resultsCard').style.display = 'block';
+    const tbody = document.querySelector('#scanResultsTable tbody');
+    tbody.innerHTML = '';
+    
+    document.getElementById('dbSuccessAlert').style.display = 'none';
+    document.getElementById('progressContainer').style.display = 'flex';
+    document.getElementById('progressStatus').innerText = "Đang phân tích dải IP...";
+    
+    const formData = new FormData(this);
+    const csrfToken = formData.get('csrf_token');
+    const community = formData.get('community');
+    
+    try {
+        // Step 1: Parse IPs
+        const parseRes = await fetch('{{ url_for("tools.api_parse_ips") }}', { method: 'POST', body: formData });
+        const parseData = await parseRes.json();
+        
+        if(!parseData.success || !parseData.ips.length) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-warning text-center">Không tìm thấy địa chỉ IP hợp lệ để quét.</td></tr>`;
+            return;
+        }
+        
+        const totalIps = parseData.ips;
+        const totalCount = totalIps.length;
+        document.getElementById('progressText').innerText = `0 / ${totalCount}`;
+        
+        const BATCH_SIZE = 20;
+        let scannedCount = 0;
+        let dbTotalUpdated = 0;
+        let totalValid = 0;
+        successfulIpsInThisScan.clear();
+        
+        // Loop chunks
+        for (let i = 0; i < totalCount; i += BATCH_SIZE) {
+            if (!isScanning) {
+                 const tr = document.createElement('tr');
+                 tr.innerHTML = `<td colspan="4" class="text-danger text-center">Tiến trình đã bị người dùng hủy bỏ ở IP phần ${scannedCount}/${totalCount}.</td>`;
+                 tbody.appendChild(tr);
+                 break;
+            }
+            
+            const chunk = totalIps.slice(i, i + BATCH_SIZE);
+            document.getElementById('progressStatus').innerText = `Đang quét theo lô... (${i+1} đến ${Math.min(i+BATCH_SIZE, totalCount)})`;
+            
+            const chunkData = new FormData();
+            chunkData.append('csrf_token', csrfToken);
+            chunkData.append('community', community);
+            chunkData.append('ip_list', chunk.join(','));
+            
+            try {
+                const scanRes = await fetch('{{ url_for("tools.api_scan_printers") }}', { method: 'POST', body: chunkData });
+                const scanData = await scanRes.json();
+                
+                if (scanData.success) {
+                    dbTotalUpdated += (scanData.db_updated_count || 0);
+                    
+                    scanData.results.forEach(res => {
+                        if (res.status === 'OK' && res.counter !== null) {
+                            totalValid++;
+                            successfulIpsInThisScan.add(res.ip);
+                            const tr = document.createElement('tr');
+                            const nameLabel = res.name ? ` <span class="badge bg-info">${res.name}</span>` : '';
+                            tr.innerHTML = `
+                                <td>${res.ip}${nameLabel}</td>
+                                <td class="table-success">${res.status}</td>
+                                <td><strong class="text-primary">${res.counter}</strong></td>
+                                <td>${new Date().toLocaleString('vi-VN')}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        }
+                    });
+                }
+            } catch (err) {
+                 console.error("Lỗi scan batch", err);
+            }
+            
+            scannedCount += chunk.length;
+            const pct = Math.round((scannedCount / totalCount) * 100);
+            document.getElementById('scanProgressBar').style.width = pct + '%';
+            document.getElementById('scanProgressBar').innerText = pct + '%';
+            document.getElementById('progressText').innerText = `${scannedCount} / ${totalCount}`;
+        }
+        
+        if (totalValid === 0) {
+             tbody.innerHTML += `<tr><td colspan="4" class="text-secondary text-center">Không có máy in/thiết bị nào trả lời truy vấn.</td></tr>`;
+        } else {
+             // Save successful IPs to cache
+             saveCachedIps(Array.from(successfulIpsInThisScan));
+        }
+        
+        if (dbTotalUpdated > 0) {
+            document.getElementById('dbSuccessAlert').style.display = 'block';
+            document.getElementById('dbUpdatedCount').innerText = dbTotalUpdated;
+        }
+        
+        if(isScanning) {
+             document.getElementById('progressStatus').innerText = "Đã quét xong toàn bộ!";
+        } else {
+             document.getElementById('progressStatus').innerText = "Đã hủy quét!";
+             // reset bar color to warning
+             document.getElementById('scanProgressBar').classList.add('bg-warning');
+        }
+        
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-danger text-center">Lỗi mạng lưới: ${err}</td></tr>`;
+    } finally {
+        isScanning = false;
+        btn.innerHTML = '<i class="fas fa-search"></i> Bắt đầu Quét';
+        btn.disabled = false;
+        btnCancel.style.display = 'none';
+    }
+});
+
+// Auto-scan on load if default_ips were fetched from DB or load CACHE
+window.addEventListener('DOMContentLoaded', function() {
+    const cached = getCachedIps();
+    const listInput = document.getElementById('ipListInput');
+    
+    if (cached && cached.length > 0) {
+        // Ưu tiên load từ cache trình duyệt
+        listInput.value = cached.join(', ');
+        document.getElementById('btnScan').click();
+    } else {
+        // Nếu không có cache, load theo DB đã gán sẵn
+        const listVal = listInput.value;
+        if (listVal && listVal !== "192.168.1.1-20") {
+            document.getElementById('btnScan').click();
+        }
+    }
+});
+</script>
+{% endblock %}

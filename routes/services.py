@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify, flash
 from flask_login import current_user
 from psycopg2.extras import RealDictCursor
 
@@ -72,6 +72,11 @@ def delete_service(service_id):
         
     cur = conn.cursor()
     try:
+        cur.execute("SELECT COUNT(*) FROM quick_actions WHERE service_id = %s", (service_id,))
+        if cur.fetchone()[0] > 0 and current_user.role_id != 1:
+            flash("Dịch vụ này đang được gài làm Thao Tác Nhanh. Chỉ Admin mới được xóa!", "danger")
+            return redirect(url_for('services.services_page'))
+            
         sql = "DELETE FROM Services WHERE service_id = %s"
         cur.execute(sql, (service_id,))
         
@@ -132,6 +137,11 @@ def update_service():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        cur.execute("SELECT COUNT(*) FROM quick_actions WHERE service_id = %s", (service_id,))
+        if cur.fetchone()[0] > 0 and current_user.role_id != 1:
+            flash("Dịch vụ này đang được gài làm Thao Tác Nhanh. Chỉ Admin mới được chỉnh sửa!", "danger")
+            return redirect(url_for('services.services_page'))
+
         sql = """
             UPDATE Services 
             SET service_name=%s, base_price=%s, description=%s, 
@@ -166,6 +176,11 @@ def toggle_service(id):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
+        cur.execute("SELECT COUNT(*) FROM quick_actions WHERE service_id = %s", (id,))
+        if cur.fetchone()[0] > 0 and current_user.role_id != 1:
+            flash("Dịch vụ này đang được gài làm Thao Tác Nhanh. Chỉ Admin mới được vô hiệu hóa!", "danger")
+            return redirect(url_for('services.services_page'))
+
         cur.execute("UPDATE Services SET is_active = NOT is_active WHERE service_id = %s", (id,))
         
         sql = "SELECT is_active FROM Services WHERE service_id = %s"

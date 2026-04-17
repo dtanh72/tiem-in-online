@@ -1,0 +1,43 @@
+{% extends "UI/base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="fas fa-bolt text-warning"></i> Thao Tác Nhanh (POS Siêu tốc)</h2>
+    {% if current_user.role_id == 1 %}
+    <a href="{{ url_for('tools.manage_quick_actions') }}" class="btn btn-outline-info"><i class="fas fa-cog"></i> Tùy chỉnh Nút</a>
+    {% endif %}
+</div>
+
+<div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-4 mt-2">
+    {% for action in quick_actions %}
+        {% if action.service_id %}
+        <div class="col">
+            <form action="{{ url_for('tools.execute_quick_pos') }}" method="POST" class="h-100">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="service_id" value="{{ action.service_id }}">
+                <button type="submit" class="btn h-100 w-100 text-white fw-bold shadow position-relative d-flex flex-column align-items-center justify-content-center" 
+                        style="background-color: {{ action.bg_color }}; min-height: 150px; font-size: 1.2rem; transition: transform 0.2s;"
+                        onmouseover="this.style.transform='scale(1.05)'" 
+                        onmouseout="this.style.transform='scale(1)'">
+                    <i class="fas fa-shopping-cart fa-2x mb-2"></i>
+                    <span class="text-wrap">{{ action.button_label }}</span>
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div class="col">
+            <div class="card h-100 bg-light text-muted d-flex align-items-center justify-content-center" style="min-height: 150px;">
+                <span class="fs-5">{{ action.button_label }}</span>
+                <small>(Chưa gán)</small>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+</div>
+
+<div class="mt-5 p-4 border rounded bg-light">
+    <h5><i class="fas fa-info-circle text-info"></i> Hướng dẫn</h5>
+    <p class="mb-0 text-muted">Bấm vào bất kỳ nút nào ở trên để lập tức ghi nhận doanh thu 1 lượt (Số lượng: 1) của dịch vụ đó, gán cho "Khách bán lẻ" mặc định. Đơn hàng sẽ tự động đánh dấu là <b>Hoàn Thành</b> và <b>Đã thanh toán</b>.</p>
+</div>
+
+{% endblock %}

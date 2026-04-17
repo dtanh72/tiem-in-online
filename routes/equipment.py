@@ -114,7 +114,12 @@ def equipment_detail_page(equipment_id):
     
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
-    sql_eq = "SELECT * FROM Equipment WHERE equipment_id = %s"
+    sql_eq = """
+        SELECT E.*, S.supplier_name 
+        FROM Equipment E 
+        LEFT JOIN Suppliers S ON E.supplier_id = S.supplier_id 
+        WHERE E.equipment_id = %s
+    """
     cur.execute(sql_eq, (equipment_id,))
     equipment_info = cur.fetchone()
     

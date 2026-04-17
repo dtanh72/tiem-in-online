@@ -172,6 +172,43 @@
 		</div>
 	</div>
 
+	<div class="modal fade" id="quickAddMaterialModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm nhanh Vật tư</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="quickAddMaterialForm">
+                        <div class="mb-3">
+                            <label class="form-label">Tên Vật tư:</label>
+                            <input type="text" id="quick_material_name" class="form-control" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Đ/vị cơ sở:</label>
+                                <input type="text" id="quick_base_unit" class="form-control" required placeholder="Cái, Tờ...">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Đ/vị Nhập:</label>
+                                <input type="text" id="quick_import_unit" class="form-control" placeholder="Thùng, Gram...">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Quy đổi:</label>
+                                <input type="number" id="quick_conversion_factor" class="form-control" placeholder="1" value="1">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" id="saveQuickAddMaterial" class="btn btn-primary">Lưu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 	<hr class="my-5">
     
     <div class="card shadow-sm mb-5 border-info">
@@ -310,7 +347,8 @@
                     const opt = document.createElement('option');
                     opt.value = data.new_id; opt.text = data.new_name; opt.selected = true;
                     select.appendChild(opt);
-                    bootstrap.Modal.getInstance(document.getElementById('quickAddSupplierModal')).hide();
+                    const modalInst = bootstrap.Modal.getInstance(document.getElementById('quickAddSupplierModal'));
+                    if(modalInst) modalInst.hide();
                 } else { alert(data.error); }
             });
         });
@@ -350,7 +388,8 @@
                         activeSelectElement.value = data.new_id;
                         updateUnitDisplay(activeSelectElement);
                     }
-                    bootstrap.Modal.getInstance(document.getElementById('quickAddMaterialModal')).hide();
+                    const modalInst = bootstrap.Modal.getInstance(document.getElementById('quickAddMaterialModal'));
+                    if(modalInst) modalInst.hide();
                     document.getElementById('quickAddMaterialForm').reset();
                 } else { alert(data.error); }
             });

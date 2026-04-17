@@ -637,7 +637,8 @@
                     if(d.success){
                         const opt = new Option(d.new_name, d.new_id, true, true);
                         $('#customer_id').append(opt).trigger('change');
-                        bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal')).hide();
+                        const modalInst = bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal'));
+                        if (modalInst) modalInst.hide();
                     } else alert(d.error);
                 });
             });
@@ -683,7 +684,8 @@
 							listSelects.forEach(s => $(s).append(opt.cloneNode(true)));
 						}
 
-						bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal')).hide();
+						const mInst = bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal'));
+                        if(mInst) mInst.hide();
 						document.getElementById('quickAddServiceForm').reset();
 						
 					} else {

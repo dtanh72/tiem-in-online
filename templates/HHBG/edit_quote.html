@@ -557,8 +557,11 @@
                     if(d.success){
                         const opt = document.createElement('option'); opt.value=d.new_id; opt.text=d.new_name; opt.selected=true;
                         document.getElementById('customer_id').appendChild(opt);
-                        bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal')).hide();
-                    } else alert(d.error);
+                        const modalInst = bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal'));
+                        if (modalInst) modalInst.hide();
+                    } else {
+                        alert(d.error);
+                    }
                 });
             });
 
@@ -600,7 +603,8 @@
                             listSelects[listSelects.length - 1].dispatchEvent(new Event('change'));
 						}
 
-						bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal')).hide();
+						const mInst = bootstrap.Modal.getInstance(document.getElementById('quickAddServiceModal'));
+                        if(mInst) mInst.hide();
 						document.getElementById('quickAddServiceForm').reset();
 						
 					} else {

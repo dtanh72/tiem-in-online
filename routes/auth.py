@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from psycopg2.extras import RealDictCursor
@@ -55,6 +55,7 @@ def login():
             if user and check_password_hash(user['password_hash'], password):
                 user_obj = User(user['user_id'], user['username'], user['full_name'], user['role_id'])
                 login_user(user_obj)
+                session.permanent = True
                 
                 log_system_action(
                     user_id=user['user_id'],

@@ -29,10 +29,12 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'mac_dinh_neu_khong_co_key')
 
 # Cấu hình bảo mật Session & CSRF
+from datetime import timedelta
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
-    WTF_CSRF_ENABLED=True
+    WTF_CSRF_ENABLED=True,
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=8)
 )
 
 # Jinja Filter

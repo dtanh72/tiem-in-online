@@ -121,10 +121,21 @@
                         </ul>
                     </li>
                     
-                    <li class="nav-item">
-                        <a class="nav-link text-warning fw-bold" href="{{ url_for('tools.calculators_page') }}">
-                            <i class="fas fa-calculator"></i> Công cụ Hỗ trợ
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-warning fw-bold" href="#" id="navbarDropdownTools" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-tools"></i> Công cụ Hỗ trợ
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('tools.calculators_page') }}"><i class="fas fa-calculator"></i> Tính toán In ấn</a></li>
+                            {% if current_user.can('sale') or current_user.can('all') %}
+                            <li><a class="dropdown-item" href="{{ url_for('tools.quick_pos') }}"><i class="fas fa-bolt"></i> Thao Tác Nhanh (POS)</a></li>
+                            {% endif %}
+                            {% if current_user.role_id == 1 %}
+                            <li><a class="dropdown-item" href="{{ url_for('tools.manage_quick_actions') }}"><i class="fas fa-cogs"></i> Cấu hình Nút Thao Tác</a></li>
+                            {% endif %}
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-secondary text-wrap" style="max-width:250px;" href="{{ url_for('tools.public_scanner') }}"><i class="fas fa-network-wired"></i> Scanner Mạng (Không yêu cầu Login)</a></li>
+                        </ul>
                     </li>
                     
                     <li class="nav-item dropdown">
@@ -155,6 +166,7 @@
                     </li>
                 </ul>
                 {% if current_user.can('sale') %}
+                <a href="{{ url_for('tools.quick_pos') }}" class="btn btn-warning me-2 fw-bold"><i class="fas fa-bolt"></i> Quick POS</a>
                 <a href="{{ url_for('quotes.create_quote_page') }}" class="btn btn-outline-primary me-2">+ Tạo Báo giá</a>
                 <a href="{{ url_for('orders.create_order_page') }}" class="btn btn-danger">+ Tạo Đơn hàng</a>
 				{% endif %}		
