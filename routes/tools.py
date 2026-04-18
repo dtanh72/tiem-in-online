@@ -2,14 +2,13 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from db import get_db_connection
 from psycopg2.extras import RealDictCursor
-import asyncio
-from pysnmp.hlapi.v3arch.asyncio import get_cmd, SnmpEngine, CommunityData, UdpTransportTarget, ContextData, ObjectType, ObjectIdentity
 from utils import log_system_action, requires_permission
 from constants import MD_SALE
 import time
 import csv
 import os
 import ipaddress
+import json
 
 tools_bp = Blueprint('tools', __name__, url_prefix='/tools')
 
@@ -23,19 +22,22 @@ def calculators_page():
 def public_scanner():
     conn = get_db_connection()
     equip_ips = []
+    equip_map = {}
     if conn:
         try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT ip_address FROM Equipment WHERE is_active=TRUE AND ip_address IS NOT NULL AND ip_address != ''")
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT ip_address, equipment_name FROM Equipment WHERE is_active=TRUE AND ip_address IS NOT NULL AND ip_address != ''")
                 for row in cur.fetchall():
-                    equip_ips.append(row['ip_address'].strip())
+                    ip = row['ip_address'].strip()
+                    equip_ips.append(ip)
+                    equip_map[ip] = row['equipment_name']
         except Exception as e:
             print("Err load IPs:", e)
         finally:
             conn.close()
     
     default_ips = ", ".join(equip_ips) if equip_ips else "192.168.1.1-20"
-    return render_template('tools/scanner.html', default_ips=default_ips)
+    return render_template('tools/scanner.html', default_ips=default_ips, equip_map_json=json.dumps(equip_map))
 
 @tools_bp.route('/api/parse-ips', methods=['POST'])
 def api_parse_ips():
@@ -68,128 +70,22 @@ def api_parse_ips():
     sorted_ips = sorted(list(ips), key=lambda ip: int(ipaddress.IPv4Address(ip)))
     return jsonify({'success': True, 'ips': sorted_ips})
 
-@tools_bp.route('/api/scan-printers', methods=['POST'])
-def api_scan_printers():
-    ip_list_str = request.form.get('ip_list', '')
-    community = request.form.get('community', 'public')
+@tools_bp.route('/api/sync_counters', methods=['POST'])
+@login_required
+@requires_permission('tech', 'inventory', 'accounting', 'sale')
+def api_sync_counters():
+    """ 
+    API Này nhận kết quả mảng đã quét thành công từ Local Agent (truyền qua Javascript).
+    Dữ liệu yêu cầu: {"results": [{"ip": "...", "counter": 1234, "status": "OK", "name": "..."}]}
+    """
+    results_str = request.form.get('results')
+    if not results_str:
+        return jsonify({'success': False, 'error': 'Missing results data'})
     
-    ips = []
-    for item in ip_list_str.split(','):
-        item = item.strip()
-        if not item: continue
-        if '-' in item:
-            parts = item.split('-')
-            if len(parts) == 2:
-                start_ip, end_ip = parts[0].strip(), parts[1].strip()
-                try:
-                    if '.' not in end_ip:
-                        start_ip_obj = ipaddress.IPv4Address(start_ip)
-                        prefix = start_ip.rsplit('.', 1)[0]
-                        end_ip = f"{prefix}.{end_ip}"
-                    start = int(ipaddress.IPv4Address(start_ip))
-                    end = int(ipaddress.IPv4Address(end_ip))
-                    if start <= end:
-                        for ip_int in range(start, end + 1):
-                            ips.append(str(ipaddress.IPv4Address(ip_int)))
-                except:
-                    pass
-        else:
-            try:
-                ips.append(str(ipaddress.IPv4Address(item)))
-            except:
-                pass
-                
-    results = []
-    
-    async def fetch_counter(ip_addr, comm):
-        tran = await UdpTransportTarget.create((ip_addr, 161), timeout=1.0, retries=0)
-        errInd1, errStat1, errIdx1, varBinds1 = await get_cmd(
-            SnmpEngine(),
-            CommunityData(comm, mpModel=0),
-            tran,
-            ContextData(),
-            ObjectType(ObjectIdentity('1.3.6.1.2.1.43.10.2.1.4.1.1'))
-        )
-        val = 0
-        status_str = None
-        if not errInd1 and not errStat1:
-            try:
-                v = int(varBinds1[0][1])
-                if v > 0:
-                    val = v
-                    status_str = "OK"
-            except: pass
-            
-        if val == 0:
-            errInd2, errStat2, errIdx2, varBinds2 = await get_cmd(
-                SnmpEngine(),
-                CommunityData(comm, mpModel=0),
-                tran,
-                ContextData(),
-                ObjectType(ObjectIdentity('1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.2.6.0'))
-            )
-            if not errInd2 and not errStat2:
-                try:
-                    v = int(varBinds2[0][1])
-                    if v > 0:
-                        val = v
-                        status_str = "OK"
-                except: pass
-                
-        if val == 0:
-            # Fallback cho HP DesignJet (Diện tích in tính bằng ròng rã Inch vuông)
-            errInd3, errStat3, errIdx3, varBinds3 = await get_cmd(
-                SnmpEngine(),
-                CommunityData(comm, mpModel=0),
-                tran,
-                ContextData(),
-                ObjectType(ObjectIdentity('1.3.6.1.4.1.11.2.3.9.4.2.1.4.1.12.2.5.1.0'))
-            )
-            if not errInd3 and not errStat3:
-                try:
-                    v = int(varBinds3[0][1])
-                    if v > 0:
-                        # 1 m2 = 1550.0031 sq_inches. Round to nearest integer.
-                        val = int(round(v / 1550.0031)) 
-                        status_str = "OK"
-                except: pass
-                
-        if status_str is None:
-             status_str = str(errInd1) if errInd1 else str(errStat1)
-             
-        return status_str, val
-
-    # Pre-fetch Equipment Map
-    equip_map = {}
     try:
-        conn = get_db_connection()
-        if conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT ip_address, equipment_name FROM Equipment WHERE is_active=TRUE AND ip_address IS NOT NULL")
-                for row in cur.fetchall():
-                    if row.get('ip_address'):
-                        equip_map[str(row['ip_address']).strip()] = row['equipment_name']
-            conn.close()
-    except Exception as e:
-        print("Err map equip:", e)
-
-    async def fetch_all(ips_list, comm):
-        tasks = [fetch_counter(ip, comm) for ip in ips_list]
-        return await asyncio.gather(*tasks, return_exceptions=True)
-
-    raw_results = asyncio.run(fetch_all(ips, community))
-
-    for i, ip in enumerate(ips):
-        equip_name = equip_map.get(ip, "")
-        res = raw_results[i]
-        if isinstance(res, Exception):
-             results.append({'ip': ip, 'name': equip_name, 'status': f'Exception: {res}', 'counter': None})
-        else:
-            status, counter = res
-            if status != "OK":
-                results.append({'ip': ip, 'name': equip_name, 'status': status, 'counter': None})
-            else:
-                results.append({'ip': ip, 'name': equip_name, 'status': 'OK', 'counter': counter})
+        results = json.loads(results_str)
+    except json.JSONDecodeError:
+        return jsonify({'success': False, 'error': 'Invalid JSON format for results'})
 
     # Cập nhật số counter vào Database Equipment
     db_updated_count = 0

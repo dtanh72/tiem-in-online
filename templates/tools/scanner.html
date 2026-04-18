@@ -5,6 +5,11 @@
 <div class="container mt-4">
     <h2><i class="fas fa-network-wired"></i> Scanner Quét Máy In / Photocopy (Public)</h2>
     <p class="text-secondary">Công cụ này không cần đăng nhập tĩnh. Sử dụng để quét tự động địa chỉ IP hoặc dải mạng lấy tổng số lượt In (Counter).</p>
+    <div class="alert alert-warning">
+        <strong>Lưu ý quan trọng:</strong> 
+        Do hệ thống đang được triển khai trên Cloud (Đám mây), trang web này không thể trực tiếp chạm đến các máy in trong dải mạng cục bộ của anh (VD: <code>192.168.1.x</code>). <br/>
+        Để tính năng này hoạt động, xin vui lòng chắc chắn rằng <strong>Print Shop Local Agent (printshop_local_agent.py)</strong> đang được mở ngầm ở máy tính tại cửa hàng.
+    </div>
     
     <div class="card card-custom mb-4">
         <div class="card-body">
@@ -136,9 +141,13 @@ document.getElementById('scannerForm').addEventListener('submit', async function
         
         const BATCH_SIZE = 20;
         let scannedCount = 0;
-        let dbTotalUpdated = 0;
         let totalValid = 0;
+        let dbTotalUpdated = 0;
         successfulIpsInThisScan.clear();
+        
+        const equipMap = {{ equip_map_json|safe }};
+        const LOCAL_AGENT_URL = 'http://127.0.0.1:23456/api/scan';
+        const cloudResultsToSync = [];
         
         // Loop chunks
         for (let i = 0; i < totalCount; i += BATCH_SIZE) {
@@ -150,24 +159,29 @@ document.getElementById('scannerForm').addEventListener('submit', async function
             }
             
             const chunk = totalIps.slice(i, i + BATCH_SIZE);
-            document.getElementById('progressStatus').innerText = `Đang quét theo lô... (${i+1} đến ${Math.min(i+BATCH_SIZE, totalCount)})`;
-            
-            const chunkData = new FormData();
-            chunkData.append('csrf_token', csrfToken);
-            chunkData.append('community', community);
-            chunkData.append('ip_list', chunk.join(','));
+            document.getElementById('progressStatus').innerText = `Đang quét tại Local Agent... (${i+1} đến ${Math.min(i+BATCH_SIZE, totalCount)})`;
             
             try {
-                const scanRes = await fetch('{{ url_for("tools.api_scan_printers") }}', { method: 'POST', body: chunkData });
+                // 1) GỌI API XUỐNG MÁY LOCAL ĐỂ QUÉT
+                const scanRes = await fetch(LOCAL_AGENT_URL, { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ ips: chunk, community: community })
+                });
+                
+                if (!scanRes.ok) throw new Error("Local Agent không phản hồi (Cổng 23456)");
                 const scanData = await scanRes.json();
                 
                 if (scanData.success) {
-                    dbTotalUpdated += (scanData.db_updated_count || 0);
-                    
                     scanData.results.forEach(res => {
+                        // Map tên máy in từ biến DB của Vercel
+                        res.name = equipMap[res.ip] || "";
+                        
                         if (res.status === 'OK' && res.counter !== null) {
                             totalValid++;
                             successfulIpsInThisScan.add(res.ip);
+                            cloudResultsToSync.push(res);
+                            
                             const tr = document.createElement('tr');
                             const nameLabel = res.name ? ` <span class="badge bg-info">${res.name}</span>` : '';
                             tr.innerHTML = `
@@ -181,7 +195,11 @@ document.getElementById('scannerForm').addEventListener('submit', async function
                     });
                 }
             } catch (err) {
-                 console.error("Lỗi scan batch", err);
+                 console.error("Lỗi kết nối Local Agent:", err);
+                 if (i === 0) {
+                     // Nếu ngay chunk đầu tiên lỗi -> Khả năng chưa bật Local Agent.
+                     throw new Error("Không thể kết nối đến máy trạm Local Agent (http://127.0.0.1:23456). Vui lòng kiểm tra lại file Script!");
+                 }
             }
             
             scannedCount += chunk.length;
@@ -196,11 +214,21 @@ document.getElementById('scannerForm').addEventListener('submit', async function
         } else {
              // Save successful IPs to cache
              saveCachedIps(Array.from(successfulIpsInThisScan));
-        }
-        
-        if (dbTotalUpdated > 0) {
-            document.getElementById('dbSuccessAlert').style.display = 'block';
-            document.getElementById('dbUpdatedCount').innerText = dbTotalUpdated;
+             
+             // 2) ĐỒNG BỘ KẾT QUẢ TỔNG QUÁT LÊN CLOUD VERCEL
+             document.getElementById('progressStatus').innerText = "Đang đồng bộ số nhảy lên cơ sở dữ liệu hệ thống...";
+             const syncForm = new FormData();
+             syncForm.append('csrf_token', csrfToken);
+             syncForm.append('results', JSON.stringify(cloudResultsToSync));
+             
+             try {
+                const syncRes = await fetch('{{ url_for("tools.api_sync_counters") }}', { method: 'POST', body: syncForm });
+                const syncData = await syncRes.json();
+                if (syncData.success && syncData.db_updated_count > 0) {
+                    document.getElementById('dbSuccessAlert').style.display = 'block';
+                    document.getElementById('dbUpdatedCount').innerText = syncData.db_updated_count;
+                }
+             } catch (syncErr) { console.error("Lỗi Sync Cloud", syncErr); }
         }
         
         if(isScanning) {
